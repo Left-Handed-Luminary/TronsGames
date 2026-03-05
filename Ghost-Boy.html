@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ghost-Boy: Infinite Hunt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0b0b1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        #game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            height: 100%;
+            max-width: 100vw; /* Expanded to full screen potential */
+            padding: 10px;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #000;
+            border: 4px solid #1919a6;
+            border-radius: 12px;
+            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(25, 25, 166, 0.5);
+            max-height: calc(100vh - 140px); /* Leave room for UI */
+            max-width: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            touch-action: none;
+        }
+
+        /* --- Floating D-Pad --- */
+        #floating-dpad {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: grid;
+            grid-template-columns: repeat(3, 48px);
+            grid-template-rows: repeat(3, 48px);
+            gap: 4px;
+            z-index: 100;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            border-radius: 22px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            touch-action: none;
+            transition: box-shadow 0.3s, transform 0.1s;
+        }
+
+        #floating-dpad.is-dragging {
+            box-shadow: 0 0 30px #ff0000;
+            border: 2px solid #ff0000;
+            opacity: 0.95;
+            transform: scale(1.1);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 15px #ff0000; }
+            50% { box-shadow: 0 0 40px #ff0000; }
+            100% { box-shadow: 0 0 15px #ff0000; }
+        }
+
+        .btn-control {
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            user-select: none;
+            color: white;
+            -webkit-tap-highlight-color: transparent;
+            pointer-events: auto;
+        }
+        
+        .btn-control:active {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(0.95);
+        }
+
+        /* Middle Toggle Button */
+        #btn-toggle-bounce {
+            background: #fff;
+            border-radius: 50%;
+            border: 4px solid #aaa;
+            transition: all 0.2s;
+            position: relative;
+        }
+        #btn-toggle-bounce::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #22c55e;
+        }
+        #btn-toggle-bounce.bounce-off::after {
+            background: #ef4444;
+            box-shadow: 0 0 5px #ef4444;
+        }
+
+        .active-ghost {
+            outline: 3px solid #fff;
+            outline-offset: 2px;
+            transform: scale(1.1);
+        }
+        #overlay {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+        }
+        .dialog-box {
+            background: #111122;
+            border: 3px solid #1919a6;
+            box-shadow: 0 0 40px rgba(0,0,0,1), inset 0 0 20px rgba(25, 25, 166, 0.3);
+        }
+        .stat-label {
+            font-size: 8px;
+            color: #9ca3af;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .stat-value {
+            font-family: monospace;
+            font-size: 16px;
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Header Stats -->
+        <div class="grid grid-cols-2 gap-2 bg-gray-900 p-3 rounded-lg border border-gray-700">
+            <div class="flex flex-col gap-1 border-r border-gray-700 pr-2">
+                <div class="flex justify-between items-end">
+                    <h1 class="text-md font-bold text-red-500 tracking-tighter leading-none">GHOST-BOY</h1>
+                    <span id="level-indicator" class="text-[10px] text-white font-black uppercase">Level 1</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="stat-label">HI LEVEL</span>
+                    <span id="hi-level" class="stat-value text-white">1</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="stat-label">HI SCORE</span>
+                    <span id="hi-score" class="stat-value">0000</span>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1 pl-2">
+                <div class="flex justify-between items-center">
+                    <span class="stat-label text-yellow-500">SCORE</span>
+                    <span id="current-score" class="stat-value">0000</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="stat-label">PELLETS</span>
+                    <span id="pellet-count" class="stat-value text-red-400">000</span>
+                </div>
+                <div class="flex justify-end items-center gap-2 mt-1">
+                    <button id="mute-btn" class="bg-gray-800 p-1 rounded hover:bg-gray-700 transition" title="Mute/Unmute">
+                        <svg id="svg-unmuted" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="block"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                        <svg id="svg-muted" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                    </button>
+                    <button id="fullscreen-btn" class="bg-gray-800 p-1 rounded hover:bg-gray-700 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Area -->
+        <div class="relative flex-grow flex items-center justify-center">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div id="ready-timer" class="absolute inset-0 z-20 hidden flex items-center justify-center pointer-events-none">
+                <h2 id="timer-text" class="text-6xl font-black italic text-red-500">3</h2>
+            </div>
+
+            <!-- Overlay -->
+            <div id="overlay" class="absolute inset-0 z-10 flex items-center justify-center p-4 rounded-lg">
+                <div class="dialog-box p-6 rounded-2xl max-w-xs w-full text-center transform transition-all">
+                    <div id="start-content">
+                        <h2 class="text-3xl font-black text-red-600 mb-1 italic leading-tight">GHOST-BOY</h2>
+                        <p class="text-[10px] mb-6 text-gray-400 font-bold uppercase tracking-widest">8-Bit Hunt Session</p>
+                        
+                        <div class="grid grid-cols-4 gap-2 mb-6">
+                            <button class="ghost-choice w-10 h-10 flex items-center justify-center text-xl rounded-full bg-gray-800 transition active-ghost" data-color="red">🔴</button>
+                            <button class="ghost-choice w-10 h-10 flex items-center justify-center text-xl rounded-full bg-gray-800 transition" data-color="pink">🌸</button>
+                            <button class="ghost-choice w-10 h-10 flex items-center justify-center text-xl rounded-full bg-gray-800 transition" data-color="cyan">💎</button>
+                            <button class="ghost-choice w-10 h-10 flex items-center justify-center text-xl rounded-full bg-gray-800 transition" data-color="orange">🍊</button>
+                        </div>
+                        
+                        <button id="start-btn" class="bg-red-600 hover:bg-red-700 active:scale-95 text-white w-full py-4 rounded-xl font-black text-xl shadow-lg border-b-4 border-red-800 uppercase tracking-tighter">
+                            Begin Hunt
+                        </button>
+                        <p class="text-[10px] mt-4 text-gray-500 font-bold uppercase">Hold D-Pad for 3s to drag</p>
+                    </div>
+
+                    <div id="end-content" class="hidden">
+                        <h2 id="end-title" class="text-3xl font-black mb-2"></h2>
+                        <div class="bg-black/40 p-3 rounded-lg mb-6 border border-gray-800 text-center">
+                            <p id="level-bonus-text" class="text-xs text-yellow-500 font-bold uppercase mb-1">Pellet Bonus: +0</p>
+                            <p id="end-body" class="text-sm text-gray-300"></p>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button id="next-level-btn" class="bg-green-600 hover:bg-green-700 text-white w-full py-4 rounded-xl font-black text-lg shadow-lg hidden">NEXT LEVEL</button>
+                            <button id="overlay-restart-btn" class="bg-blue-600 hover:bg-blue-700 text-white w-full py-4 rounded-xl font-black text-lg shadow-lg">RETRY RUN</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Utility Buttons -->
+        <div class="flex flex-row justify-between items-center w-full px-4 pb-6 select-none md:hidden">
+            <div class="flex flex-col items-center gap-2">
+                 <button id="quit-btn" class="bg-gray-800 active:bg-gray-900 text-gray-500 w-16 h-16 flex flex-col items-center justify-center rounded-2xl border border-gray-700 shadow-md">
+                    <span class="text-lg">✖</span>
+                    <span class="text-[8px] font-black uppercase">Quit</span>
+                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Draggable D-Pad -->
+    <div id="floating-dpad">
+        <div class="w-[48px] h-[48px]"></div>
+        <div class="btn-control" id="btn-up">▲</div>
+        <div class="w-[48px] h-[48px]"></div>
+        
+        <div class="btn-control" id="btn-left">◀</div>
+        <div class="btn-control" id="btn-toggle-bounce"></div>
+        <div class="btn-control" id="btn-right">▶</div>
+        
+        <div class="w-[48px] h-[48px]"></div>
+        <div class="btn-control" id="btn-down">▼</div>
+        <div class="w-[48px] h-[48px]"></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const pelletEl = document.getElementById('pellet-count');
+        const levelEl = document.getElementById('level-indicator');
+        const hiLevelEl = document.getElementById('hi-level');
+        const scoreEl = document.getElementById('current-score');
+        const hiScoreEl = document.getElementById('hi-score');
+        const overlay = document.getElementById('overlay');
+        const startContent = document.getElementById('start-content');
+        const endContent = document.getElementById('end-content');
+        const nextLevelBtn = document.getElementById('next-level-btn');
+        const restartBtn = document.getElementById('overlay-restart-btn');
+        const timerLayer = document.getElementById('ready-timer');
+        const timerText = document.getElementById('timer-text');
+        const dpad = document.getElementById('floating-dpad');
+        const quitBtn = document.getElementById('quit-btn');
+        const bounceBtn = document.getElementById('btn-toggle-bounce');
+        const muteBtn = document.getElementById('mute-btn');
+        const svgMuted = document.getElementById('svg-muted');
+        const svgUnmuted = document.getElementById('svg-unmuted');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+        // Dynamic Base Logic Variables
+        let GRID_SIZE = 18; 
+        let COLS = 25; 
+        let ROWS = 27; 
+
+        let globalHiScore = 0;
+        let globalHiLevel = 1;
+        let currentLevel = 1;
+        let currentScore = 0;
+
+        let map = [];
+        let pacman = { x: 12, y: 20, dir: { x: -1, y: 0 }, speed: 0.10 };
+        let ghost = { 
+            x: 12, y: 12, dir: { x: 0, y: 0 }, nextDir: { x: 0, y: -1 }, 
+            speed: 0.11, color: 'red', bounceEnabled: true 
+        };
+        let fruit = { x: 12, y: 15, active: false, spawnTimer: 0, lifeTimer: 0 };
+        let gameState = 'START';
+        let pelletsRemaining = 0;
+        let powerMode = 0;
+        let gameActive = false;
+        let animationFrameId = null;
+        let isMuted = false;
+
+        const GHOST_COLORS = { red: '#ff0000', pink: '#ffb8ff', cyan: '#00ffff', orange: '#ffb852' };
+
+        // --- 8-BIT SOUND ENGINE ---
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playSound(freq, type, duration, volume = 0.1) {
+            if (isMuted || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const SFX = {
+            start: () => {
+                [261, 329, 392, 523].forEach((f, i) => {
+                    setTimeout(() => playSound(f, 'square', 0.2, 0.05), i * 100);
+                });
+            },
+            catch: () => {
+                [523, 659, 783, 1046].forEach((f, i) => {
+                    setTimeout(() => playSound(f, 'square', 0.3, 0.08), i * 80);
+                });
+            },
+            defeat: () => {
+                playSound(300, 'sawtooth', 0.5, 0.05);
+                setTimeout(() => playSound(200, 'sawtooth', 0.5, 0.05), 100);
+            },
+            bounce: () => playSound(150, 'triangle', 0.1, 0.05),
+            fruit: () => playSound(880, 'square', 0.1, 0.05),
+            pellet: () => {
+                playSound(240, 'square', 0.05, 0.03);
+            },
+            sirenNormal: () => {
+                if (Date.now() % 450 < 20) {
+                    playSound(160 + Math.sin(Date.now()/300)*20, 'triangle', 0.25, 0.04);
+                }
+            },
+            sirenPower: () => {
+                if (Date.now() % 200 < 20) {
+                    playSound(480 + (Math.floor(Date.now()/100)%2)*60, 'square', 0.12, 0.02);
+                }
+            }
+        };
+
+        function calculateMazeDimensions() {
+            // Adapt grid size slightly based on screen width so it's readable
+            GRID_SIZE = window.innerWidth < 600 ? 16 : 22;
+            
+            const availW = window.innerWidth - 30; // Side paddings
+            const availH = window.innerHeight - 150; // Reserve for Header and UI elements
+            
+            let tCols = Math.floor(availW / GRID_SIZE);
+            let tRows = Math.floor(availH / GRID_SIZE);
+            
+            // Generate requires symmetrical odds
+            if (tCols % 2 === 0) tCols--;
+            if (tRows % 2 === 0) tRows--;
+            
+            // Limit minimum size to keep maze generation logic stable
+            COLS = Math.max(19, tCols);
+            ROWS = Math.max(21, tRows);
+            
+            canvas.width = COLS * GRID_SIZE;
+            canvas.height = ROWS * GRID_SIZE;
+        }
+
+        function generateMaze() {
+            const newMap = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1) newMap[r][c] = 1;
+                }
+            }
+            
+            const cx = Math.floor(COLS / 2);
+            const cy = Math.floor(ROWS / 2);
+            
+            // Center House scaling from relative positions
+            for (let r = cy - 1; r <= cy + 1; r++) {
+                for (let c = cx - 1; c <= cx + 1; c++) newMap[r][c] = 1;
+            }
+            
+            newMap[cy][cx] = 2; newMap[cy-1][cx] = 2; newMap[cy-2][cx] = 2; newMap[cy-3][cx] = 2;
+            
+            for (let r = 2; r < ROWS - 2; r += 2) {
+                for (let c = 2; c < Math.floor(COLS / 2); c += 2) {
+                    if (r >= cy - 4 && r <= cy + 4 && (c === cx || c === cx - 1 || c === cx + 1)) continue; 
+                    if (Math.random() > 0.4) {
+                        newMap[r][c] = 1;
+                        newMap[r][COLS - 1 - c] = 1;
+                        // Organic connection strings
+                        if (Math.random() > 0.7 && r + 1 < ROWS - 2) {
+                            newMap[r+1][c] = 1;
+                            newMap[r+1][COLS - 1 - c] = 1;
+                        }
+                    }
+                }
+            }
+            newMap[2][1] = 3; newMap[2][COLS - 2] = 3;
+            newMap[ROWS - 3][1] = 3; newMap[ROWS - 3][COLS - 2] = 3;
+            
+            // Keep pacman spawn area empty safely below the center
+            newMap[ROWS - 5][cx] = 2; 
+            return newMap;
+        }
+
+        function resetGame(next = false, retryFullRun = false) {
+            initAudio();
+            if (retryFullRun) { currentLevel = 1; currentScore = 0; }
+            else if (next) { currentLevel++; }
+            
+            levelEl.innerText = `LEVEL ${currentLevel}`;
+            scoreEl.innerText = currentScore.toString().padStart(4, '0');
+            
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            calculateMazeDimensions();
+            map = generateMaze();
+            pelletsRemaining = map.flat().filter(x => x === 0 || x === 3).length;
+            
+            const cx = Math.floor(COLS / 2); 
+            const cy = Math.floor(ROWS / 2);
+            
+            const pSpeed = 0.10 + (currentLevel * 0.005);
+            pacman = { x: cx, y: ROWS - 5, dir: { x: -1, y: 0 }, speed: Math.min(pSpeed, 0.18) };
+            
+            ghost = { 
+                x: cx, y: cy, dir: { x: 0, y: 0 }, nextDir: { x: 0, y: -1 }, 
+                speed: 0.12 + (currentLevel * 0.002), color: ghost.color || 'red', bounceEnabled: true 
+            };
+            updateBounceUI();
+            
+            fruit = { x: cx, y: cy + 3, active: false, spawnTimer: 0, lifeTimer: 0 };
+            powerMode = 0; gameState = 'PLAYING'; gameActive = false;
+            overlay.classList.add('hidden');
+            startCountdown();
+            SFX.start();
+        }
+
+        function startCountdown() {
+            timerLayer.classList.remove('hidden');
+            let count = 3;
+            timerText.innerText = count;
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) { timerText.innerText = count; playSound(440, 'square', 0.1, 0.05); }
+                else if (count === 0) { timerText.innerText = "HUNT!"; playSound(880, 'square', 0.2, 0.05); }
+                else {
+                    clearInterval(timer);
+                    timerLayer.classList.add('hidden');
+                    gameActive = true;
+                    if (ghost.dir.x === 0 && ghost.dir.y === 0) {
+                        ghost.dir = { ...ghost.nextDir };
+                        ghost.nextDir = {x: 0, y: 0};
+                    }
+                }
+            }, 700);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function isWall(x, y) {
+            const rx = Math.round(x), ry = Math.round(y);
+            if (ry < 0 || ry >= ROWS || rx < 0 || rx >= COLS) return true;
+            return map[ry][rx] === 1;
+        }
+
+        function findBestDir(startX, startY) {
+            let queue = [{x: startX, y: startY, path: []}];
+            let visited = new Set([`${startX},${startY}`]);
+            const dirs = [{x:1,y:0}, {x:-1,y:0}, {x:0,y:1}, {x:0,y:-1}];
+            const targetX = fruit.active ? fruit.x : null;
+            const targetY = fruit.active ? fruit.y : null;
+            
+            // Limit processing depth based on map dimensions
+            const procLimit = Math.min((COLS * ROWS * 0.6), 1500);
+
+            while (queue.length > 0) {
+                let current = queue.shift();
+                if (targetX !== null && current.x === targetX && current.y === targetY) return current.path[0];
+                if (targetX === null && (map[current.y][current.x] === 0 || map[current.y][current.x] === 3)) return current.path[0];
+                for (let d of dirs) {
+                    let nx = (current.x + d.x + COLS) % COLS, ny = current.y + d.y;
+                    if (!isWall(nx, ny) && !visited.has(`${nx},${ny}`)) {
+                        visited.add(`${nx},${ny}`);
+                        queue.push({x: nx, y: ny, path: [...current.path, d]});
+                    }
+                }
+                if (visited.size > procLimit) break;
+            }
+            return null;
+        }
+
+        function movePacman() {
+            if (!gameActive) return;
+            if (powerMode > 0) powerMode--;
+            if (!fruit.active) {
+                fruit.spawnTimer++;
+                if (fruit.spawnTimer > 1000) { fruit.active = true; fruit.lifeTimer = 700; fruit.spawnTimer = 0; SFX.fruit(); }
+            } else {
+                fruit.lifeTimer--;
+                if (fruit.lifeTimer <= 0) fruit.active = false;
+            }
+            const cx = Math.round(pacman.x), cy = Math.round(pacman.y);
+            if (Math.abs(pacman.x - cx) < 0.1 && Math.abs(pacman.y - cy) < 0.1) {
+                pacman.x = cx; pacman.y = cy;
+                if (fruit.active && cx === fruit.x && cy === fruit.y) { fruit.active = false; fruit.spawnTimer = -500; }
+                if (map[cy][cx] === 0 || map[cy][cx] === 3) {
+                    if (map[cy][cx] === 3) powerMode = 450;
+                    map[cy][cx] = 2; pelletsRemaining--;
+                    SFX.pellet();
+                    if (pelletsRemaining <= 0) endGame(false);
+                }
+                const nextDir = findBestDir(cx, cy);
+                if (nextDir) pacman.dir = nextDir;
+            }
+            const nx = pacman.x + pacman.dir.x * pacman.speed, ny = pacman.y + pacman.dir.y * pacman.speed;
+            if (!isWall(nx + pacman.dir.x * 0.4, ny + pacman.dir.y * 0.4)) { pacman.x = nx; pacman.y = ny; }
+            if (pacman.x < 0) pacman.x = COLS - 1; if (pacman.x >= COLS) pacman.x = 0;
+        }
+
+        function moveGhost() {
+            if (!gameActive) return;
+            const cx = Math.round(ghost.x), cy = Math.round(ghost.y);
+            
+            if (powerMode > 0) SFX.sirenPower();
+            else SFX.sirenNormal();
+
+            if (ghost.nextDir.x === -ghost.dir.x && ghost.nextDir.y === -ghost.dir.y && (ghost.dir.x !== 0 || ghost.dir.y !== 0)) {
+                ghost.dir = { ...ghost.nextDir }; ghost.nextDir = { x: 0, y: 0 };
+            }
+
+            if (Math.abs(ghost.x - cx) < 0.2 && Math.abs(ghost.y - cy) < 0.2) {
+                if (ghost.nextDir.x !== 0 || ghost.nextDir.y !== 0) {
+                    if (!isWall(cx + ghost.nextDir.x, cy + ghost.nextDir.y)) {
+                        ghost.x = cx; ghost.y = cy;
+                        ghost.dir = { ...ghost.nextDir };
+                        ghost.nextDir = { x: 0, y: 0 };
+                    }
+                }
+            }
+
+            let nx = ghost.x + ghost.dir.x * ghost.speed;
+            let ny = ghost.y + ghost.dir.y * ghost.speed;
+
+            if (!isWall(nx + ghost.dir.x * 0.35, ny + ghost.dir.y * 0.35)) {
+                ghost.x = nx;
+                ghost.y = ny;
+            } else {
+                ghost.x = cx; ghost.y = cy;
+                if (ghost.bounceEnabled) {
+                    ghost.dir.x *= -1;
+                    ghost.dir.y *= -1;
+                    SFX.bounce();
+                } else {
+                    ghost.dir = { x: 0, y: 0 };
+                    ghost.nextDir = { x: 0, y: 0 };
+                    ghost.bounceEnabled = true;
+                    updateBounceUI();
+                }
+            }
+
+            if (ghost.x < -0.5) ghost.x = COLS - 0.5; if (ghost.x >= COLS - 0.5) ghost.x = -0.5;
+        }
+
+        function endGame(win, msg) {
+            gameState = 'ENDED'; gameActive = false;
+            const isCatch = win;
+            let levelBonus = isCatch ? pelletsRemaining : 0;
+            currentScore += levelBonus;
+            if (currentScore > globalHiScore) globalHiScore = currentScore;
+            if (currentLevel > globalHiLevel) globalHiLevel = currentLevel;
+            hiScoreEl.innerText = globalHiScore.toString().padStart(4, '0');
+            hiLevelEl.innerText = globalHiLevel;
+            scoreEl.innerText = currentScore.toString().padStart(4, '0');
+            document.getElementById('level-bonus-text').innerText = `Pellet Bonus: +${levelBonus}`;
+            document.getElementById('end-title').innerText = isCatch ? "CATCH!" : "DEFEAT";
+            document.getElementById('end-title').className = isCatch ? "text-3xl font-black mb-2 text-green-500" : "text-3xl font-black mb-2 text-red-500";
+            document.getElementById('end-body').innerText = msg || (isCatch ? `Level ${currentLevel} Secured.` : "He cleared the board.");
+            overlay.classList.remove('hidden');
+            startContent.classList.add('hidden');
+            endContent.classList.remove('hidden');
+            nextLevelBtn.classList.toggle('hidden', !isCatch);
+            restartBtn.innerText = isCatch ? "REPLAY LEVEL" : "RETRY RUN";
+            if (isCatch) SFX.catch(); else SFX.defeat();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Responsive Drawing Sizes
+            const rSmall = Math.max(1.5, GRID_SIZE * 0.1);
+            const rBig = GRID_SIZE * 0.25;
+            const rActor = GRID_SIZE * 0.45;
+            const eyeOffset = GRID_SIZE * 0.15;
+            const pupilOffset = GRID_SIZE * 0.05;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const val = map[r][c], x = c * GRID_SIZE, y = r * GRID_SIZE;
+                    if (val === 1) { 
+                        ctx.strokeStyle = '#1919a6'; ctx.lineWidth = 2; ctx.strokeRect(x+2, y+2, GRID_SIZE-4, GRID_SIZE-4); 
+                    }
+                    else if (val === 0) { 
+                        ctx.fillStyle = '#ffb8ae'; ctx.beginPath(); ctx.arc(x + GRID_SIZE/2, y + GRID_SIZE/2, rSmall, 0, 7); ctx.fill(); 
+                    }
+                    else if (val === 3) { 
+                        ctx.fillStyle = '#fff'; if (Date.now()%400<200) { ctx.beginPath(); ctx.arc(x + GRID_SIZE/2, y + GRID_SIZE/2, rBig, 0, 7); ctx.fill(); }
+                    }
+                }
+            }
+            if (fruit.active) { 
+                ctx.font = `${Math.floor(GRID_SIZE * 0.8)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+                ctx.fillText('🍒', fruit.x*GRID_SIZE + GRID_SIZE/2, fruit.y*GRID_SIZE + GRID_SIZE/2 + 1); 
+            }
+            
+            ctx.fillStyle = powerMode > 0 ? '#fff' : '#ffff00';
+            const px = pacman.x*GRID_SIZE + GRID_SIZE/2, py = pacman.y*GRID_SIZE + GRID_SIZE/2;
+            const mouth = gameActive ? Math.abs(Math.sin(Date.now()*0.015))*0.3 : 0.1;
+            const rot = Math.atan2(pacman.dir.y, pacman.dir.x);
+            ctx.beginPath(); ctx.moveTo(px, py); ctx.arc(px, py, rActor, rot+mouth, rot+6.28-mouth); ctx.fill();
+            
+            const gx = ghost.x*GRID_SIZE + GRID_SIZE/2, gy = ghost.y*GRID_SIZE + GRID_SIZE/2;
+            ctx.fillStyle = (powerMode > 0 && Math.floor(Date.now()/100)%2===0) ? '#2121ff' : GHOST_COLORS[ghost.color];
+            ctx.beginPath(); ctx.arc(gx, gy - GRID_SIZE*0.1, rActor, 3.14, 0); 
+            ctx.lineTo(gx + rActor, gy + rActor); 
+            ctx.lineTo(gx - rActor, gy + rActor); ctx.fill();
+            
+            ctx.fillStyle = '#fff'; ctx.beginPath(); 
+            ctx.arc(gx - eyeOffset, gy - eyeOffset, rActor*0.35, 0, 7); 
+            ctx.arc(gx + eyeOffset, gy - eyeOffset, rActor*0.35, 0, 7); ctx.fill();
+            
+            ctx.fillStyle = '#000'; ctx.beginPath(); 
+            ctx.arc(gx - eyeOffset + ghost.dir.x*pupilOffset, gy - eyeOffset + ghost.dir.y*pupilOffset, rActor*0.15, 0, 7); 
+            ctx.arc(gx + eyeOffset + ghost.dir.x*pupilOffset, gy - eyeOffset + ghost.dir.y*pupilOffset, rActor*0.15, 0, 7); ctx.fill();
+            
+            pelletEl.innerText = pelletsRemaining.toString().padStart(3, '0');
+        }
+
+        function gameLoop() {
+            if (gameState !== 'PLAYING') return;
+            movePacman(); moveGhost(); draw();
+            if (gameActive) {
+                const dist = Math.sqrt((pacman.x - ghost.x)**2 + (pacman.y - ghost.y)**2);
+                if (dist < 0.8) { if (powerMode > 0) endGame(false, "HE ATE YOU!"); else endGame(true); }
+            }
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        const setDir = (x, y) => {
+            if (!gameActive) { ghost.nextDir = { x, y }; return; }
+            ghost.nextDir = { x, y };
+            if (ghost.dir.x === 0 && ghost.dir.y === 0) {
+                const cx = Math.round(ghost.x), cy = Math.round(ghost.y);
+                if (!isWall(cx + x, cy + y)) {
+                    ghost.dir = { x, y };
+                    ghost.nextDir = { x: 0, y: 0 };
+                }
+            }
+        };
+
+        function updateBounceUI() {
+            if (ghost.bounceEnabled) bounceBtn.classList.remove('bounce-off');
+            else bounceBtn.classList.add('bounce-off');
+        }
+
+        function quitGame() {
+            gameActive = false;
+            gameState = 'START';
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            currentLevel = 1; currentScore = 0;
+            levelEl.innerText = `LEVEL 1`; scoreEl.innerText = `0000`;
+            overlay.classList.remove('hidden'); startContent.classList.remove('hidden');
+            endContent.classList.add('hidden'); 
+            
+            // Re-calculate UI baseline immediately
+            calculateMazeDimensions();
+            map = generateMaze();
+            draw();
+        }
+
+        muteBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            svgMuted.classList.toggle('hidden', !isMuted);
+            svgUnmuted.classList.toggle('hidden', isMuted);
+        });
+
+        // --- DRAGGABLE D-PAD ---
+        let dragTimer = null;
+        let isDraggingDpad = false;
+
+        const startLongPress = (e) => {
+            initAudio();
+            if (e.target.id === 'btn-toggle-bounce') {
+                ghost.dir = { x: 0, y: 0 };
+                ghost.nextDir = { x: 0, y: 0 };
+                ghost.bounceEnabled = false;
+                updateBounceUI();
+                return; 
+            }
+            
+            const touch = e.touches ? e.touches[0] : e;
+            dragTimer = setTimeout(() => {
+                isDraggingDpad = true;
+                dpad.classList.add('is-dragging');
+            }, 3000); 
+        };
+
+        const handleDpadMove = (e) => {
+            if (!isDraggingDpad) return;
+            e.preventDefault();
+            const touch = e.touches ? e.touches[0] : e;
+            dpad.style.left = (touch.clientX - 75) + 'px';
+            dpad.style.top = (touch.clientY - 75) + 'px';
+            dpad.style.bottom = 'auto';
+            dpad.style.right = 'auto';
+        };
+
+        const endLongPress = (e) => {
+            clearTimeout(dragTimer);
+            if (isDraggingDpad) {
+                isDraggingDpad = false;
+                dpad.classList.remove('is-dragging');
+            }
+        };
+
+        dpad.addEventListener('touchstart', startLongPress, {passive: false});
+        dpad.addEventListener('mousedown', startLongPress);
+        window.addEventListener('touchmove', handleDpadMove, {passive: false});
+        window.addEventListener('mousemove', handleDpadMove);
+        window.addEventListener('touchend', endLongPress);
+        window.addEventListener('mouseup', endLongPress);
+
+        const bindBtn = (id, x, y) => {
+            const el = document.getElementById(id);
+            const trigger = (e) => {
+                if (isDraggingDpad) return;
+                e.preventDefault(); e.stopPropagation();
+                setDir(x, y);
+            };
+            el.addEventListener('touchstart', trigger, {passive: false});
+            el.addEventListener('mousedown', trigger);
+        };
+        bindBtn('btn-up', 0, -1); bindBtn('btn-down', 0, 1);
+        bindBtn('btn-left', -1, 0); bindBtn('btn-right', 1, 0);
+
+        document.getElementById('start-btn').addEventListener('click', () => resetGame(false, true));
+        nextLevelBtn.addEventListener('click', () => resetGame(true));
+        restartBtn.addEventListener('click', () => resetGame(false, restartBtn.innerText === "RETRY RUN"));
+        quitBtn.addEventListener('click', quitGame);
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+            else document.exitFullscreen();
+        });
+        document.querySelectorAll('.ghost-choice').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.ghost-choice').forEach(b => b.classList.remove('active-ghost'));
+                ghost.color = btn.dataset.color; btn.classList.add('active-ghost');
+            });
+        });
+
+        // Initialize UI sizing correctly
+        calculateMazeDimensions();
+        map = generateMaze(); 
+        draw();
+    </script>
+</body>
+</html>
