@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mergation</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+        h1 {
+            font-size: clamp(28px, 6vw, 52px);
+            color: #a78bfa;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            text-shadow: 0 0 20px rgba(167,139,250,0.6);
+        }
+        #score-display {
+            font-size: clamp(14px, 3vw, 20px);
+            color: #94a3b8;
+            margin-bottom: 16px;
+            letter-spacing: 2px;
+        }
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            width: min(90vw, 380px);
+        }
+        .cell {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(18px, 4vw, 28px);
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.15s;
+            border: 2px solid transparent;
+        }
+        .cell:hover { transform: scale(1.06); }
+        .cell.selected {
+            border-color: #f8fafc;
+            box-shadow: 0 0 14px rgba(248,250,252,0.6);
+            transform: scale(1.1);
+        }
+        .cell.merged {
+            animation: pop 0.25s ease;
+        }
+        @keyframes pop {
+            0%   { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+        .tier-1  { background: #1e3a5f; color: #93c5fd; }
+        .tier-2  { background: #1e4d3f; color: #6ee7b7; }
+        .tier-3  { background: #4a1d1d; color: #fca5a5; }
+        .tier-4  { background: #3b2f1e; color: #fcd34d; }
+        .tier-5  { background: #2d1a4d; color: #c4b5fd; }
+        .tier-6  { background: #1e3a5f; color: #7dd3fc; }
+        .tier-7  { background: #14532d; color: #bbf7d0; }
+        .tier-8  { background: #7c2d12; color: #fed7aa; }
+        .tier-empty { background: #1e293b; }
+        #message {
+            margin-top: 18px;
+            font-size: clamp(14px, 3vw, 18px);
+            color: #f1f5f9;
+            min-height: 28px;
+            letter-spacing: 1px;
+        }
+        #restart-btn {
+            margin-top: 14px;
+            padding: 10px 32px;
+            background: transparent;
+            border: 2px solid #6366f1;
+            color: #a5b4fc;
+            font-size: 16px;
+            font-family: inherit;
+            border-radius: 8px;
+            cursor: pointer;
+            letter-spacing: 2px;
+            transition: background 0.2s, color 0.2s;
+        }
+        #restart-btn:hover {
+            background: #4f46e5;
+            color: #fff;
+        }
+        #instructions {
+            margin-top: 16px;
+            font-size: clamp(10px, 2vw, 13px);
+            color: #475569;
+            text-align: center;
+            max-width: 380px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mergation</h1>
+    <div id="score-display">Score: <span id="score">0</span></div>
+    <div id="grid"></div>
+    <div id="message"></div>
+    <button id="restart-btn" onclick="startGame()">Restart</button>
+    <div id="instructions">
+        <p>Click two tiles of the same number to merge them.</p>
+        <p>Reach <strong style="color:#a78bfa">2048</strong> to win!</p>
+    </div>
+
+    <script>
+        const ROWS = 4, COLS = 4;
+        const TIERS = 8;
+        const WIN_VALUE = 2048;
+        const SPAWN_2_PROBABILITY = 0.8;
+
+        let grid = [], score = 0, selected = null, gameOver = false;
+
+        const tierClass = v => {
+            const n = Math.log2(v);
+            return `tier-${Math.min(n, TIERS)}`;
+        };
+
+        function startGame() {
+            grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            score = 0;
+            selected = null;
+            gameOver = false;
+            document.getElementById('message').textContent = '';
+            spawnTile();
+            spawnTile();
+            render();
+        }
+
+        function spawnTile() {
+            const empty = [];
+            for (let r = 0; r < ROWS; r++)
+                for (let c = 0; c < COLS; c++)
+                    if (grid[r][c] === 0) empty.push([r, c]);
+            if (!empty.length) return false;
+            const [r, c] = empty[Math.floor(Math.random() * empty.length)];
+            grid[r][c] = Math.random() < SPAWN_2_PROBABILITY ? 2 : 4;
+            return true;
+        }
+
+        function render() {
+            const container = document.getElementById('grid');
+            container.innerHTML = '';
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const v = grid[r][c];
+                    const cell = document.createElement('div');
+                    cell.className = 'cell ' + (v ? tierClass(v) : 'tier-empty');
+                    cell.textContent = v || '';
+                    if (selected && selected[0] === r && selected[1] === c)
+                        cell.classList.add('selected');
+                    if (v) cell.onclick = () => handleClick(r, c);
+                    container.appendChild(cell);
+                }
+            }
+            document.getElementById('score').textContent = score;
+        }
+
+        function handleClick(r, c) {
+            if (gameOver) return;
+            if (!selected) {
+                selected = [r, c];
+                render();
+                return;
+            }
+            const [sr, sc] = selected;
+            if (sr === r && sc === c) {
+                selected = null;
+                render();
+                return;
+            }
+            if (grid[sr][sc] === grid[r][c]) {
+                const newVal = grid[r][c] * 2;
+                score += newVal;
+                grid[r][c] = newVal;
+                grid[sr][sc] = 0;
+                selected = null;
+                const didSpawn = spawnTile();
+                render();
+                // Animate merged cell
+                const idx = r * COLS + c;
+                const cells = document.querySelectorAll('.cell');
+                if (cells[idx]) {
+                    cells[idx].classList.add('merged');
+                    cells[idx].addEventListener('animationend', () => cells[idx].classList.remove('merged'));
+                }
+                if (newVal >= WIN_VALUE) {
+                    document.getElementById('message').textContent = '🎉 You reached ' + WIN_VALUE + '! You win!';
+                    gameOver = true;
+                } else if (!didSpawn && isBoardFull()) {
+                    document.getElementById('message').textContent = 'No more moves! Game over.';
+                    gameOver = true;
+                }
+            } else {
+                selected = [r, c];
+                render();
+            }
+        }
+
+        function isBoardFull() {
+            for (let r = 0; r < ROWS; r++)
+                for (let c = 0; c < COLS; c++)
+                    if (grid[r][c] === 0) return false;
+            // Check for any adjacent match
+            for (let r = 0; r < ROWS; r++)
+                for (let c = 0; c < COLS; c++) {
+                    if (c + 1 < COLS && grid[r][c] === grid[r][c + 1]) return false;
+                    if (r + 1 < ROWS && grid[r][c] === grid[r + 1][c]) return false;
+                }
+            return true;
+        }
+
+        startGame();
+    </script>
+</body>
+</html>
