@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Davidic Lyre</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --light-wood: #A87442;
+    --med-wood: #7A4E2A;
+    --dark-wood: #4A2E1A;
+    --highlight: #C99562;
+    --gut-light: #E8DCC8;
+    --gut-dark: #9A6E45;
+    --bg: #1a0e06;
+    --bg2: #251508;
+    --text-warm: #e8d5b0;
+    --text-dim: #8a6a45;
+    --gold: #d4a843;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text-warm);
+    font-family: 'Crimson Text', Georgia, serif;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 520px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* === HEADER === */
+  #header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px 6px;
+    border-bottom: 1px solid rgba(168,116,66,0.25);
+    background: linear-gradient(to bottom, #0d0603, transparent);
+    position: relative;
+    z-index: 10;
+  }
+
+  #header h1 {
+    font-family: 'Cinzel', serif;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(212,168,67,0.4);
+  }
+
+  #header h1 span {
+    display: block;
+    font-family: 'Crimson Text', serif;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-top: 1px;
+  }
+
+  #preset-select {
+    background: rgba(74,46,26,0.7);
+    border: 1px solid rgba(168,116,66,0.4);
+    color: var(--text-warm);
+    font-family: 'Crimson Text', serif;
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    max-width: 155px;
+  }
+
+  #preset-select option { background: #2a1508; }
+
+  /* === LYRE CANVAS === */
+  #lyre-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #lyre-svg {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  /* === CONTROLS === */
+  #controls {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 12px;
+    background: linear-gradient(to top, #0d0603, transparent);
+    border-top: 1px solid rgba(168,116,66,0.18);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .ctrl-btn {
+    background: rgba(74,46,26,0.5);
+    border: 1px solid rgba(168,116,66,0.35);
+    color: var(--text-dim);
+    font-family: 'Crimson Text', serif;
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .ctrl-btn:hover { border-color: rgba(168,116,66,0.7); color: var(--text-warm); }
+  .ctrl-btn.active {
+    background: rgba(122,78,42,0.6);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .ctrl-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+
+  input[type=range] {
+    width: 64px;
+    accent-color: var(--light-wood);
+    height: 3px;
+    cursor: pointer;
+  }
+
+  #gesture-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s;
+    z-index: 20;
+  }
+
+  #gesture-hint p {
+    font-family: 'Crimson Text', serif;
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(212,168,67,0.7);
+    line-height: 2;
+  }
+
+  #start-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10,5,2,0.85);
+    z-index: 50;
+    cursor: pointer;
+    gap: 14px;
+  }
+
+  #start-overlay h2 {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    color: var(--gold);
+    letter-spacing: 3px;
+    text-shadow: 0 0 30px rgba(212,168,67,0.5);
+  }
+
+  #start-overlay p {
+    font-style: italic;
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+
+  #start-overlay .start-btn {
+    margin-top: 8px;
+    background: rgba(122,78,42,0.5);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    padding: 10px 28px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #start-overlay .start-btn:hover {
+    background: rgba(122,78,42,0.8);
+    box-shadow: 0 0 20px rgba(212,168,67,0.3);
+  }
+
+  .note-label {
+    pointer-events: none;
+    font-family: 'Crimson Text', serif;
+    font-size: 12px;
+    fill: rgba(212,168,67,0.75);
+    text-anchor: middle;
+    font-style: italic;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .note-label.visible { opacity: 1; }
+
+  /* Ripple on pluck */
+  .pluck-ring {
+    fill: none;
+    stroke: rgba(212,168,67,0.6);
+    stroke-width: 1.5;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="start-overlay" id="start-overlay">
+    <h2>DAVIDIC LYRE</h2>
+    <p>A kinnor of the ancient Near East</p>
+    <button class="start-btn" onclick="initAudio()">Touch to Awaken</button>
+  </div>
+
+  <div id="header">
+    <div>
+      <h1>Davidic Lyre<span>כִּנּוֹר · Kinnor</span></h1>
+    </div>
+    <select id="preset-select" onchange="loadPreset(this.value)">
+      <option value="d_dorian">D Dorian</option>
+      <option value="dark">Dark Mode</option>
+      <option value="drone">Drone Psalm</option>
+    </select>
+  </div>
+
+  <div id="lyre-container">
+    <svg id="lyre-svg" viewBox="0 0 340 620" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-labels" onclick="toggleLabels()">Labels</button>
+    <button class="ctrl-btn active" id="btn-drone" onclick="toggleDrone()">Drone Off</button>
+    <button class="ctrl-btn active" id="btn-reverb" onclick="toggleReverb()">Reverb</button>
+    <div class="ctrl-slider-wrap">
+      <span>Vol</span>
+      <input type="range" id="vol-slider" min="0" max="1" step="0.05" value="0.8" oninput="setVolume(this.value)">
+    </div>
+    <div class="ctrl-slider-wrap">
+      <span>Bright</span>
+      <input type="range" id="bright-slider" min="0" max="1" step="0.05" value="0.4" oninput="setBrightness(this.value)">
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// CONFIG & PRESETS
+// ============================================================
+const PRESETS = {
+  d_dorian: {
+    name: "Davidic D Dorian",
+    notes: ["D2","E2","F2","G2","A2","B2","C3","D3"],
+    freqs: [73.42, 82.41, 87.31, 98.00, 110.00, 123.47, 130.81, 146.83]
+  },
+  dark: {
+    name: "Davidic Dark Mode",
+    notes: ["D2","E2","F2","G2","A2","Bb2","C3","D3"],
+    freqs: [73.42, 82.41, 87.31, 98.00, 110.00, 116.54, 130.81, 146.83]
+  },
+  drone: {
+    name: "Drone Psalm",
+    notes: ["D2","A2","D3","F3","G3","A3","C4","D4"],
+    freqs: [73.42, 110.00, 146.83, 174.61, 196.00, 220.00, 261.63, 293.66]
+  }
+};
+
+const NUM_STRINGS = 8;
+const HOLD_MS = 150;
+const TAP_DRIFT = 18;
+const MIN_SWIPE = 25;
+const HOLD_DRIFT = 22;
+const ADSR = { attack: 0.012, decay: 0.20, sustain: 0.32, release: 0.65 };
+
+// ============================================================
+// STATE
+// ============================================================
+let audioCtx = null;
+let masterGain = null;
+let reverbNode = null;
+let reverbGain = null;
+let dryGain = null;
+let currentPreset = PRESETS.d_dorian;
+let strings = [];        // {id, note, freq, x, yTop, yBot, thickness, muted, ringing, vibAmp, voices}
+let touches = {};        // touchId -> trace
+let labelsOn = false;
+let droneOn = false;
+let reverbOn = true;
+let volume = 0.8;
+let brightness = 0.4;
+
+// SVG layout
+let svgW = 340, svgH = 620;
+const RES_TOP_R = 0.70, RES_H_R = 0.30, RES_W_R = 0.70;
+const STR_MARGIN_R = 0.12;
+const STR_TOP_R = 0.14, STR_BOT_R = 0.83;
+const ARM_W = 18, CROSS_H = 14;
+const HITBOX_HW = 32;
+const THICKNESSES = [6, 5.5, 5, 4.5, 4, 3.5, 3, 2.5];
+
+// Animation
+let animFrame = null;
+let vibrations = new Array(NUM_STRINGS).fill(0);
+
+// ============================================================
+// AUDIO INIT
+// ============================================================
+async function initAudio() {
+  document.getElementById('start-overlay').style.display = 'none';
+
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = volume;
+  masterGain.connect(audioCtx.destination);
+
+  // Simple convolution reverb via impulse
+  dryGain = audioCtx.createGain();
+  dryGain.gain.value = 0.85;
+  dryGain.connect(masterGain);
+
+  reverbGain = audioCtx.createGain();
+  reverbGain.gain.value = 0.45;
+  reverbGain.connect(masterGain);
+
+  try {
+    reverbNode = audioCtx.createConvolver();
+    reverbNode.buffer = buildImpulse(audioCtx, 1.8, 2.5);
+    reverbNode.connect(reverbGain);
+  } catch(e) { reverbOn = false; }
+
+  buildLyre();
+  setupTouchHandlers();
+  startAnimation();
+}
+
+function buildImpulse(ctx, duration, decay) {
+  const rate = ctx.sampleRate;
+  const len = rate * duration;
+  const impulse = ctx.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++) {
+    const ch = impulse.getChannelData(c);
+    for (let i = 0; i < len; i++) {
+      ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  return impulse;
+}
+
+// ============================================================
+// GUT STRING SYNTHESIS
+// ============================================================
+function pluckString(stringId, velocity = 0.7) {
+  if (!audioCtx) return;
+  const s = strings[stringId];
+  if (!s || s.muted) return;
+
+  const freq = s.freq;
+  const sr = audioCtx.sampleRate;
+  const duration = (droneOn && stringId === 0) ? 4.0 : 2.5;
+
+  // Build Karplus-Strong buffer in JS (no feedback loop in audio graph)
+  const period = Math.max(2, Math.round(sr / freq));
+  const totalSamples = Math.floor(sr * duration);
+  const buf = audioCtx.createBuffer(1, totalSamples, sr);
+  const d = buf.getChannelData(0);
+
+  // Seed first period with white noise
+  for (let i = 0; i < period; i++) d[i] = Math.random() * 2 - 1;
+
+  // KS recurrence with averaging — compensate for the 0.5 attenuation
+  // by using fbk close to 1. The averaging is the built-in low-pass; fbk
+  // controls sustain. At 0.999 a D2 string (period~600) decays over ~2s.
+  const fbk = 0.999 - (1 - brightness) * 0.003; // 0.996 – 0.999
+  for (let i = period; i < totalSamples; i++) {
+    const prev = i - period - 1 >= 0 ? d[i - period - 1] : d[i - period];
+    d[i] = fbk * (d[i - period] + prev) * 0.5;
+    // Clamp to prevent any numerical blowup (shouldn't happen but safety net)
+    if (d[i] > 1) d[i] = 1;
+    if (d[i] < -1) d[i] = -1;
+  }
+
+  // Playback
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+
+  // Warm low-pass
+  const lp = audioCtx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1200 + brightness * 2000;
+  lp.Q.value = 0.4;
+
+  // Body warmth boost
+  const body = audioCtx.createBiquadFilter();
+  body.type = 'peaking';
+  body.frequency.value = 220;
+  body.gain.value = 4;
+  body.Q.value = 1.2;
+
+  // Set gain immediately at full level then decay naturally via setTargetAtTime
+  const peakVol = (0.4 + velocity * 0.6) * (0.5 + (1 - stringId / (NUM_STRINGS - 1)) * 0.5);
+  const envGain = audioCtx.createGain();
+  const t = audioCtx.currentTime;
+  envGain.gain.setValueAtTime(peakVol, t);
+  envGain.gain.setTargetAtTime(0, t + 0.05, 1.2 + (1 - stringId / 7) * 0.8);
+
+  src.connect(lp);
+  lp.connect(body);
+  body.connect(envGain);
+  envGain.connect(dryGain);
+  if (reverbOn && reverbNode) envGain.connect(reverbNode);
+
+  src.start();
+  src.stop(t + duration);
+
+  // Visual feedback
+  vibrations[stringId] = 1.0;
+  s.ringing = true;
+  s.muted = false;
+
+  // Sympathetic resonance (visual only)
+  strings.forEach((_, ni) => {
+    if (ni !== stringId && !strings[ni].muted) {
+      const gap = Math.abs(ni - stringId);
+      if (gap <= 2) setTimeout(() => {
+        vibrations[ni] = Math.max(vibrations[ni], 0.1 - gap * 0.03);
+      }, 30);
+    }
+  });
+}
+function muteString(stringId) {
+  if (!strings[stringId]) return;
+  strings[stringId].muted = true;
+  strings[stringId].ringing = false;
+  vibrations[stringId] = 0;
+  drawStrings();
+}
+
+function unmuteString(stringId) {
+  if (!strings[stringId]) return;
+  strings[stringId].muted = false;
+}
+
+// ============================================================
+// LYRE BUILDER
+// ============================================================
+function buildLyre() {
+  const svg = document.getElementById('lyre-svg');
+  const vb = svg.getAttribute('viewBox').split(' ');
+  svgW = parseFloat(vb[2]);
+  svgH = parseFloat(vb[3]);
+
+  strings = [];
+  for (let i = 0; i < NUM_STRINGS; i++) {
+    const margin = svgW * STR_MARGIN_R;
+    const usable = svgW - 2 * margin;
+    const spacing = usable / (NUM_STRINGS - 1);
+    const x = margin + i * spacing;
+    const yTop = svgH * STR_TOP_R + CROSS_H;
+    const yBot = svgH * STR_BOT_R;
+    strings.push({
+      id: i,
+      note: currentPreset.notes[i],
+      freq: currentPreset.freqs[i],
+      x, yTop, yBot,
+      thickness: THICKNESSES[i],
+      muted: false, ringing: false
+    });
+  }
+
+  svg.innerHTML = '';
+  drawBody(svg);
+  drawStrings();
+  drawKnots();
+}
+
+function svgEl(tag, attrs = {}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+  return el;
+}
+
+function drawBody(svg) {
+  const resW = svgW * RES_W_R;
+  const resX = (svgW - resW) / 2;
+  const resTopY = svgH * RES_TOP_R;
+  const resH = svgH * RES_H_R;
+
+  // Subtle ambient glow behind resonator
+  const glow = svgEl('ellipse', {
+    cx: svgW / 2, cy: resTopY - resH / 2 + 30,
+    rx: resW * 0.6, ry: resH * 0.4,
+    fill: 'rgba(200,150,80,0.06)'
+  });
+  svg.appendChild(glow);
+
+  // Resonator shadow
+  const shadow = svgEl('rect', {
+    x: resX + 4, y: resTopY - resH + 4,
+    width: resW, height: resH,
+    rx: resW * 0.42, ry: resW * 0.42,
+    fill: 'rgba(0,0,0,0.4)'
+  });
+  svg.appendChild(shadow);
+
+  // Resonator dark outer
+  const res1 = svgEl('rect', {
+    x: resX, y: resTopY - resH,
+    width: resW, height: resH,
+    rx: resW * 0.44, ry: resW * 0.44,
+    fill: '#3d2412'
+  });
+  svg.appendChild(res1);
+
+  // Resonator medium fill
+  const res2 = svgEl('rect', {
+    x: resX + 7, y: resTopY - resH + 7,
+    width: resW - 14, height: resH - 14,
+    rx: resW * 0.40, ry: resW * 0.40,
+    fill: '#6b3e20'
+  });
+  svg.appendChild(res2);
+
+  // Grain lines on resonator
+  for (let g = 0; g < 5; g++) {
+    const gx = resX + resW * 0.25 + g * resW * 0.1;
+    const grain = svgEl('line', {
+      x1: gx, y1: resTopY - resH + 20,
+      x2: gx + 3, y2: resTopY - 14,
+      stroke: 'rgba(180,130,80,0.12)', 'stroke-width': '2',
+      'stroke-linecap': 'round'
+    });
+    svg.appendChild(grain);
+  }
+
+  // Highlight stripe
+  const hl = svgEl('rect', {
+    x: resX + resW * 0.36, y: resTopY - resH + 12,
+    width: resW * 0.07, height: resH * 0.52,
+    rx: 3, fill: 'rgba(220,180,110,0.18)'
+  });
+  svg.appendChild(hl);
+
+  // Sound hole
+  const holeR = resW * 0.085;
+  const holeCx = svgW / 2;
+  const holeCy = resTopY - resH * 0.52;
+
+  const holeOuter = svgEl('circle', {
+    cx: holeCx, cy: holeCy, r: holeR + 3,
+    fill: '#2a1508'
+  });
+  svg.appendChild(holeOuter);
+
+  const hole = svgEl('circle', {
+    cx: holeCx, cy: holeCy, r: holeR,
+    fill: '#130a03'
+  });
+  svg.appendChild(hole);
+
+  // Rosette ring
+  const rosette = svgEl('circle', {
+    cx: holeCx, cy: holeCy, r: holeR + 1.5,
+    fill: 'none', stroke: '#8a5a2a', 'stroke-width': '1'
+  });
+  svg.appendChild(rosette);
+
+  // Arms
+  const armYBot = resTopY;
+  const armYTop = svgH * STR_TOP_R;
+  const armH = armYBot - armYTop;
+  const leftArmX = resX;
+  const rightArmX = resX + resW - ARM_W;
+
+  [[leftArmX, true], [rightArmX, false]].forEach(([ax, isLeft]) => {
+    // Arm shadow
+    const aS = svgEl('rect', {
+      x: ax + 2, y: armYTop + 2,
+      width: ARM_W, height: armH,
+      rx: 3, fill: 'rgba(0,0,0,0.3)'
+    });
+    svg.appendChild(aS);
+
+    // Arm dark outer
+    const a1 = svgEl('rect', {
+      x: ax, y: armYTop,
+      width: ARM_W, height: armH,
+      rx: 3, fill: '#3d2412'
+    });
+    svg.appendChild(a1);
+
+    // Arm inner grain
+    const a2 = svgEl('rect', {
+      x: ax + 3, y: armYTop + 5,
+      width: ARM_W - 6, height: armH - 10,
+      rx: 2, fill: '#8a5028'
+    });
+    svg.appendChild(a2);
+
+    // Arm highlight
+    const aHL = svgEl('rect', {
+      x: ax + (isLeft ? 4 : 2), y: armYTop + 8,
+      width: 3, height: armH * 0.6,
+      rx: 1, fill: 'rgba(220,180,110,0.2)'
+    });
+    svg.appendChild(aHL);
+  });
+
+  // Crossbar shadow
+  const cbS = svgEl('rect', {
+    x: leftArmX + 2, y: armYTop + 2,
+    width: resW, height: CROSS_H,
+    rx: 3, fill: 'rgba(0,0,0,0.3)'
+  });
+  svg.appendChild(cbS);
+
+  // Crossbar
+  const cb1 = svgEl('rect', {
+    x: leftArmX, y: armYTop,
+    width: resW, height: CROSS_H,
+    rx: 3, fill: '#3d2412'
+  });
+  svg.appendChild(cb1);
+
+  const cb2 = svgEl('rect', {
+    x: leftArmX + 2, y: armYTop + 3,
+    width: resW - 4, height: CROSS_H - 6,
+    rx: 2, fill: '#9a6030'
+  });
+  svg.appendChild(cb2);
+
+  // Tuning pegs on crossbar
+  strings.forEach((s, i) => {
+    const pegY = armYTop + 2;
+    const peg = svgEl('ellipse', {
+      cx: s.x, cy: pegY,
+      rx: 4, ry: 3,
+      fill: '#c99030', stroke: '#5a3010', 'stroke-width': '0.5'
+    });
+    svg.appendChild(peg);
+  });
+}
+
+function drawStrings() {
+  const svg = document.getElementById('lyre-svg');
+  document.querySelectorAll('.string-layer').forEach(e => e.remove());
+  document.querySelectorAll('.note-lbl').forEach(e => e.remove());
+
+  const g = svgEl('g', { class: 'string-layer' });
+
+  strings.forEach((s, i) => {
+    const t = i / (NUM_STRINGS - 1);
+    const r = Math.round(154 + t * (232 - 154));
+    const gv = Math.round(110 + t * (220 - 110));
+    const b = Math.round(69 + t * (200 - 69));
+    const alpha = s.muted ? 0.3 : 0.9;
+    const color = `rgba(${r},${gv},${b},${alpha})`;
+
+    const vib = vibrations[i] || 0;
+    const vibPx = vib * 9;
+    const midY = (s.yTop + s.yBot) / 2;
+    const w = s.thickness;
+
+    // Glow highlight border — brightens and widens as string vibrates
+    if (vib > 0.01 && !s.muted) {
+      const hw = HITBOX_HW * 0.55 + vib * HITBOX_HW * 0.45; // narrows to wide as vib grows
+      const glowAlpha = vib * 0.55;
+      // Outer soft border
+      const glowRect = svgEl('rect', {
+        x: s.x - hw, y: s.yTop,
+        width: hw * 2, height: s.yBot - s.yTop,
+        rx: hw,
+        fill: 'none',
+        stroke: `rgba(${r + 40},${gv + 40},${b + 60},${glowAlpha * 0.5})`,
+        'stroke-width': 3 + vib * 6
+      });
+      g.appendChild(glowRect);
+      // Inner crisp border
+      const innerRect = svgEl('rect', {
+        x: s.x - hw * 0.6, y: s.yTop + 2,
+        width: hw * 1.2, height: s.yBot - s.yTop - 4,
+        rx: hw * 0.6,
+        fill: `rgba(${r},${gv},${b},${vib * 0.12})`,
+        stroke: `rgba(255,230,160,${vib * 0.9})`,
+        'stroke-width': 1
+      });
+      g.appendChild(innerRect);
+    }
+
+    // String line (wavy quadratic)
+    const path = svgEl('path', {
+      d: `M ${s.x} ${s.yTop} Q ${s.x + vibPx} ${midY} ${s.x} ${s.yBot}`,
+      fill: 'none',
+      stroke: color,
+      'stroke-width': w,
+      'stroke-linecap': 'round'
+    });
+    g.appendChild(path);
+
+    // Invisible hitbox
+    const hb = svgEl('rect', {
+      x: s.x - HITBOX_HW, y: s.yTop,
+      width: HITBOX_HW * 2, height: s.yBot - s.yTop,
+      fill: 'transparent',
+      'data-sid': i,
+      class: 'string-hitbox'
+    });
+    g.appendChild(hb);
+  });
+
+  svg.appendChild(g);
+
+  // Note labels
+  if (labelsOn) {
+    const lg = svgEl('g', { class: 'note-lbl' });
+    strings.forEach((s, i) => {
+      const lbl = svgEl('text', {
+        x: s.x, y: s.yBot + 22,
+        'text-anchor': 'middle',
+        'font-family': 'Crimson Text, serif',
+        'font-size': '12',
+        'font-style': 'italic',
+        fill: 'rgba(212,168,67,0.7)'
+      });
+      lbl.textContent = s.note;
+      lg.appendChild(lbl);
+    });
+    svg.appendChild(lg);
+  }
+}
+
+function drawKnots() {
+  const svg = document.getElementById('lyre-svg');
+  document.querySelectorAll('.knot-layer').forEach(e => e.remove());
+  const g = svgEl('g', { class: 'knot-layer' });
+  strings.forEach(s => {
+    const knot = svgEl('ellipse', {
+      cx: s.x, cy: s.yBot - 2,
+      rx: 4, ry: 3,
+      fill: '#7a4e2a', stroke: '#4a2e1a', 'stroke-width': '0.5'
+    });
+    g.appendChild(knot);
+  });
+  svg.appendChild(g);
+}
+
+// ============================================================
+// ANIMATION
+// ============================================================
+function startAnimation() {
+  function tick() {
+    let changed = false;
+    for (let i = 0; i < NUM_STRINGS; i++) {
+      if (vibrations[i] > 0.005) {
+        vibrations[i] *= 0.915;
+        changed = true;
+      } else if (vibrations[i] > 0) {
+        vibrations[i] = 0;
+        if (strings[i]) strings[i].ringing = false;
+        changed = true;
+      }
+    }
+    if (changed) drawStrings();
+    animFrame = requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+// ============================================================
+// PLUCK RIPPLE EFFECT
+// ============================================================
+function spawnRipple(x, y) {
+  const svg = document.getElementById('lyre-svg');
+  // Map from client to SVG coords
+  const rect = svg.getBoundingClientRect();
+  const scaleX = svgW / rect.width;
+  const scaleY = svgH / rect.height;
+  const sx = (x - rect.left) * scaleX;
+  const sy = (y - rect.top) * scaleY;
+
+  const c = svgEl('circle', {
+    cx: sx, cy: sy, r: 4,
+    fill: 'none',
+    stroke: 'rgba(212,168,67,0.7)',
+    'stroke-width': '1.5',
+    class: 'pluck-ring'
+  });
+  svg.appendChild(c);
+
+  let r = 4, opacity = 0.7;
+  function grow() {
+    r += 3.5; opacity -= 0.07;
+    c.setAttribute('r', r);
+    c.setAttribute('stroke', `rgba(212,168,67,${Math.max(0, opacity)})`);
+    if (opacity > 0) requestAnimationFrame(grow);
+    else c.remove();
+  }
+  requestAnimationFrame(grow);
+}
+
+// ============================================================
+// TOUCH / GESTURE SYSTEM
+// ============================================================
+function svgPoint(clientX, clientY) {
+  const svg = document.getElementById('lyre-svg');
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const svgPt = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return { x: svgPt.x, y: svgPt.y };
+}
+
+function stringAt(pt) {
+  for (let i = 0; i < strings.length; i++) {
+    const s = strings[i];
+    if (Math.abs(pt.x - s.x) <= HITBOX_HW && pt.y >= s.yTop && pt.y <= s.yBot) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function segmentCrossesString(p0, p1, s) {
+  const dx = p1.x - p0.x;
+  if (Math.abs(dx) < 0.1) {
+    return Math.abs(p0.x - s.x) <= HITBOX_HW && Math.min(p0.y, p1.y) <= s.yBot && Math.max(p0.y, p1.y) >= s.yTop;
+  }
+  const tL = (s.x - HITBOX_HW - p0.x) / dx;
+  const tR = (s.x + HITBOX_HW - p0.x) / dx;
+  const tEnter = Math.max(0, Math.min(tL, tR));
+  const tExit = Math.min(1, Math.max(tL, tR));
+  if (tEnter > tExit) return false;
+  const yMid = p0.y + ((tEnter + tExit) / 2) * (p1.y - p0.y);
+  return yMid >= s.yTop && yMid <= s.yBot;
+}
+
+function dist(p0, p1) {
+  return Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2);
+}
+
+function setupTouchHandlers() {
+  const container = document.getElementById('lyre-container');
+
+  function onDown(e) {
+    e.preventDefault();
+    if (!audioCtx) return;
+    const pts = e.changedTouches || [e];
+    for (let i = 0; i < pts.length; i++) {
+      const t = pts[i];
+      const id = t.identifier !== undefined ? t.identifier : 'mouse';
+      const pt = svgPoint(t.clientX, t.clientY);
+      const sid = stringAt(pt);
+      // Do NOT pre-seed crossedStrings — let swipe detection handle all crossings.
+      // Tap is resolved on onUp only.
+      touches[id] = {
+        startPt: pt, curPt: pt,
+        startTime: performance.now(),
+        crossedStrings: [],
+        holdActive: false,
+        holdTimer: null,
+        initialSid: sid
+      };
+      if (sid >= 0) {
+        touches[id].holdTimer = setTimeout(() => {
+          const tr = touches[id];
+          if (tr && !tr.holdActive && dist(tr.startPt, tr.curPt) <= HOLD_DRIFT) {
+            tr.holdActive = true;
+            tr.crossedStrings.push(sid);
+            muteString(sid);
+          }
+        }, HOLD_MS);
+      }
+    }
+  }
+
+  function onMove(e) {
+    e.preventDefault();
+    const pts = e.changedTouches || [e];
+    for (let i = 0; i < pts.length; i++) {
+      const t = pts[i];
+      const id = t.identifier !== undefined ? t.identifier : 'mouse';
+      const tr = touches[id];
+      if (!tr) continue;
+      const prevPt = tr.curPt;
+      const curPt = svgPoint(t.clientX, t.clientY);
+      tr.curPt = curPt;
+
+      if (tr.holdActive) {
+        strings.forEach((s, si) => {
+          if (!tr.crossedStrings.includes(si) && segmentCrossesString(prevPt, curPt, s)) {
+            tr.crossedStrings.push(si);
+            muteString(si);
+          }
+        });
+        return;
+      }
+
+      // Cancel hold timer if finger moved too far
+      if (dist(tr.startPt, curPt) > HOLD_DRIFT && tr.holdTimer) {
+        clearTimeout(tr.holdTimer);
+        tr.holdTimer = null;
+      }
+
+      // Compute swipe speed for velocity
+      const dx = curPt.x - prevPt.x, dy = curPt.y - prevPt.y;
+      const speed = Math.sqrt(dx * dx + dy * dy);
+      if (speed < 2) continue; // ignore micro-jitter
+      const velocity = Math.min(1.0, speed / 100);
+
+      // Pluck every newly-crossed string
+      strings.forEach((s, si) => {
+        if (!tr.crossedStrings.includes(si) && segmentCrossesString(prevPt, curPt, s)) {
+          tr.crossedStrings.push(si);
+          pluckString(si, velocity);
+          spawnRipple(t.clientX, t.clientY);
+        }
+      });
+    }
+  }
+
+  function onUp(e) {
+    e.preventDefault();
+    const pts = e.changedTouches || [e];
+    for (let i = 0; i < pts.length; i++) {
+      const t = pts[i];
+      const id = t.identifier !== undefined ? t.identifier : 'mouse';
+      const tr = touches[id];
+      if (!tr) continue;
+      clearTimeout(tr.holdTimer);
+
+      if (tr.holdActive) {
+        tr.crossedStrings.forEach(si => unmuteString(si));
+        delete touches[id];
+        return;
+      }
+
+      const d = dist(tr.startPt, tr.curPt);
+      const elapsed = performance.now() - tr.startTime;
+      if (d <= TAP_DRIFT && elapsed < HOLD_MS) {
+        const sid = stringAt(tr.startPt);
+        if (sid >= 0) {
+          const velocity = Math.min(1.0, elapsed / 80);
+          pluckString(sid, velocity);
+          spawnRipple(t.clientX, t.clientY);
+        }
+      }
+      delete touches[id];
+    }
+  }
+
+  // Touch events
+  container.addEventListener('touchstart', onDown, { passive: false });
+  container.addEventListener('touchmove', onMove, { passive: false });
+  container.addEventListener('touchend', onUp, { passive: false });
+  container.addEventListener('touchcancel', onUp, { passive: false });
+
+  // Mouse events (desktop)
+  let mouseDown = false;
+  container.addEventListener('mousedown', e => { mouseDown = true; e.identifier = 'mouse'; onDown(e); });
+  container.addEventListener('mousemove', e => { if (mouseDown) { e.identifier = 'mouse'; onMove(e); } });
+  container.addEventListener('mouseup', e => { mouseDown = false; e.identifier = 'mouse'; onUp(e); });
+  container.addEventListener('mouseleave', e => { if (mouseDown) { mouseDown = false; e.identifier = 'mouse'; onUp(e); } });
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+function loadPreset(key) {
+  currentPreset = PRESETS[key];
+  buildLyre();
+}
+
+function toggleLabels() {
+  labelsOn = !labelsOn;
+  const btn = document.getElementById('btn-labels');
+  btn.classList.toggle('active', labelsOn);
+  drawStrings();
+}
+
+function toggleDrone() {
+  droneOn = !droneOn;
+  const btn = document.getElementById('btn-drone');
+  btn.textContent = droneOn ? 'Drone On' : 'Drone Off';
+  btn.classList.toggle('active', droneOn);
+}
+
+function toggleReverb() {
+  reverbOn = !reverbOn;
+  const btn = document.getElementById('btn-reverb');
+  btn.classList.toggle('active', reverbOn);
+}
+
+function setVolume(v) {
+  volume = parseFloat(v);
+  if (masterGain) masterGain.gain.value = volume;
+}
+
+function setBrightness(v) {
+  brightness = parseFloat(v);
+}
+// ============================================================
+// RESIZE HANDLER
+// ============================================================
+function handleResize() {
+  if (strings.length) buildLyre();
+}
+window.addEventListener('resize', handleResize);
+</script>
+</body>
+</html>
