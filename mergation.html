@@ -87,6 +87,9 @@
     let score = 0, isGameOver = false, isMouseDown = false;
     const worldWidth = 7, worldDepth = 26, cubeSize = 1.1, deadLineZ = 10.5; 
     const slopeGravity = 0.0075, verticalGravity = 0.045; 
+    const supportOverlapThreshold = 0.55;
+    const overlapEpsilon = 0.001;
+    const overlapHorizontalNudge = 0.02;
     const visibleAngularVelocityThreshold = 0.02;
     const visibleSpeedThreshold = 0.06;
     const visibleVerticalVelocityThreshold = 0.04;
@@ -323,7 +326,7 @@
             const zOverlap = cubeSize - Math.abs(cube.position.z - other.position.z);
             const yDelta = cube.position.y - (other.position.y + cubeSize);
             // Must have meaningful top overlap to be considered stable support
-            if (xOverlap > cubeSize * 0.55 && zOverlap > cubeSize * 0.55 && yDelta > -0.25 && yDelta < 0.45) return other;
+            if (xOverlap > cubeSize * supportOverlapThreshold && zOverlap > cubeSize * supportOverlapThreshold && yDelta > -0.25 && yDelta < 0.45) return other;
         }
         return null;
     }
@@ -341,16 +344,16 @@
 
             if (overlapY <= overlapX && overlapY <= overlapZ) {
                 const dirY = dy >= 0 ? 1 : -1;
-                cube.position.y += dirY * (overlapY + 0.001);
+                cube.position.y += dirY * (overlapY + overlapEpsilon);
                 if ((dirY > 0 && cube.userData.velocity.y < 0) || (dirY < 0 && cube.userData.velocity.y > 0)) cube.userData.velocity.y = 0;
             } else if (overlapX <= overlapZ) {
                 const dirX = dx >= 0 ? 1 : -1;
-                cube.position.x += dirX * (overlapX + 0.001);
-                cube.userData.velocity.x += dirX * 0.02;
+                cube.position.x += dirX * (overlapX + overlapEpsilon);
+                cube.userData.velocity.x += dirX * overlapHorizontalNudge;
             } else {
                 const dirZ = dz >= 0 ? 1 : -1;
-                cube.position.z += dirZ * (overlapZ + 0.001);
-                cube.userData.velocity.z += dirZ * 0.02;
+                cube.position.z += dirZ * (overlapZ + overlapEpsilon);
+                cube.userData.velocity.z += dirZ * overlapHorizontalNudge;
             }
         }
     }
@@ -460,6 +463,9 @@
     const deadLineZ = 9.5; 
     const slopeGravity = 0.007; 
     const verticalGravity = 0.035; 
+    const supportOverlapThreshold = 0.55;
+    const overlapEpsilon = 0.001;
+    const overlapHorizontalNudge = 0.02;
 
     let effects = [];
     let fireworks = [];
@@ -660,7 +666,7 @@
             const xOverlap = cubeSize - Math.abs(cube.position.x - other.position.x);
             const zOverlap = cubeSize - Math.abs(cube.position.z - other.position.z);
             const yDelta = cube.position.y - (other.position.y + cubeSize);
-            if (xOverlap > cubeSize * 0.55 && zOverlap > cubeSize * 0.55 && yDelta > -0.25 && yDelta < 0.45) return other;
+            if (xOverlap > cubeSize * supportOverlapThreshold && zOverlap > cubeSize * supportOverlapThreshold && yDelta > -0.25 && yDelta < 0.45) return other;
         }
         return null;
     }
@@ -678,16 +684,16 @@
 
             if (overlapY <= overlapX && overlapY <= overlapZ) {
                 const dirY = dy >= 0 ? 1 : -1;
-                cube.position.y += dirY * (overlapY + 0.001);
+                cube.position.y += dirY * (overlapY + overlapEpsilon);
                 if ((dirY > 0 && cube.userData.velocity.y < 0) || (dirY < 0 && cube.userData.velocity.y > 0)) cube.userData.velocity.y = 0;
             } else if (overlapX <= overlapZ) {
                 const dirX = dx >= 0 ? 1 : -1;
-                cube.position.x += dirX * (overlapX + 0.001);
-                cube.userData.velocity.x += dirX * 0.02;
+                cube.position.x += dirX * (overlapX + overlapEpsilon);
+                cube.userData.velocity.x += dirX * overlapHorizontalNudge;
             } else {
                 const dirZ = dz >= 0 ? 1 : -1;
-                cube.position.z += dirZ * (overlapZ + 0.001);
-                cube.userData.velocity.z += dirZ * 0.02;
+                cube.position.z += dirZ * (overlapZ + overlapEpsilon);
+                cube.userData.velocity.z += dirZ * overlapHorizontalNudge;
             }
         }
     }
