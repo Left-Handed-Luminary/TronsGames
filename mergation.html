@@ -18,33 +18,6 @@
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             z-index: 10;
         }
-        #nudge-container {
-            position: absolute;
-            right: 30px;
-            bottom: 50px;
-            z-index: 50;
-            display: none;
-        }
-        .nudge-btn {
-            width: 80px;
-            height: 80px;
-            background: #d97706;
-            color: white;
-            font-size: 50px;
-            font-weight: 900;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 0 30px rgba(217, 119, 6, 0.6);
-            border: 5px solid #f59e0b;
-            transition: transform 0.1s, background 0.2s;
-            user-select: none;
-            pointer-events: auto;
-        }
-        .nudge-btn:active { transform: scale(0.85); background: #f59e0b; }
-
         #game-over, #win-screen {
             position: absolute;
             top: 50%;
@@ -85,10 +58,6 @@
     <p class="text-xl font-bold opacity-90">Score: <span id="score">0</span></p>
 </div>
 
-<div id="nudge-container">
-    <div class="nudge-btn" id="nudge-btn" title="Nudge Board">+</div>
-</div>
-
 <div id="game-over">
     <h2 class="text-5xl font-black mb-4 text-amber-600">GAME OVER</h2>
     <p class="text-2xl mb-4" id="game-over-reason">LINE CROSSED</p>
@@ -118,7 +87,13 @@
     let score = 0, isGameOver = false, isMouseDown = false;
     const worldWidth = 7, worldDepth = 26, cubeSize = 1.1, deadLineZ = 10.5; 
     const slopeGravity = 0.0075, verticalGravity = 0.045; 
+    const visibleAngularVelocityThreshold = 0.02;
+    const visibleSpeedThreshold = 0.06;
+    const visibleVerticalVelocityThreshold = 0.04;
+    const visibleHeightThreshold = cubeSize/2 + 0.2;
     let effects = [], fireworks = [];
+    let lastVisibleMotionTime = performance.now();
+    const stalledSpawnDelayMs = 2500;
 
     function createWoodTexture() {
         const canvas = document.createElement('canvas');
@@ -203,30 +178,7 @@
         const reload = () => window.location.reload();
         document.getElementById('retry-btn-over').onclick = reload;
         document.getElementById('retry-btn-win').onclick = reload;
-        
-        document.getElementById('nudge-btn').addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            applyNudge();
-        });
-
         animate();
-    }
-
-    function applyNudge() {
-        cubes.forEach(cube => {
-            if (!cube.parent) return;
-            // Strong random kick
-            cube.userData.velocity.add(new THREE.Vector3(
-                (Math.random() - 0.5) * 0.4,
-                Math.random() * 0.5 + 0.2, // Pop up slightly
-                (Math.random() - 0.5) * 0.4
-            ));
-            cube.userData.angularVelocity.add(new THREE.Vector3(
-                (Math.random()-0.5) * 0.2,
-                (Math.random()-0.5) * 0.2,
-                (Math.random()-0.5) * 0.2
-            ));
-        });
     }
 
     function createCube(value, x, z, y = cubeSize/2) {
@@ -273,9 +225,18 @@
         cubes.push(activeCube); activeCube = null;
     }
 
+    function hasVisibleCubeMotion(cube, speed) {
+        return speed > visibleSpeedThreshold || Math.abs(cube.userData.velocity.y) > visibleVerticalVelocityThreshold || cube.position.y > visibleHeightThreshold;
+    }
+
+    function shouldSpawnShooter(boardIsActive, isStalled) {
+        return (!boardIsActive || isStalled) && !activeCube && !isGameOver && effects.length === 0;
+    }
+
     function animate() {
         requestAnimationFrame(animate);
         let boardIsActive = false;
+        let visibleMotion = false;
         effects = effects.filter(eff => eff.update());
         fireworks = fireworks.filter(fw => fw.update());
         if (isGameOver) { renderer.render(scene, camera); return; }
@@ -303,6 +264,7 @@
                 cube.rotation.z += cube.userData.angularVelocity.z;
                 cube.userData.angularVelocity.multiplyScalar(0.95);
                 boardIsActive = true;
+                if (cube.userData.angularVelocity.length() > visibleAngularVelocityThreshold) visibleMotion = true;
             }
 
             const speed = cube.userData.velocity.length();
@@ -312,6 +274,7 @@
                 cube.userData.velocity.z -= slopeGravity; // Downhill force
                 cube.position.add(cube.userData.velocity);
                 cube.userData.velocity.multiplyScalar(0.972); // Slightly more slippery
+                if (hasVisibleCubeMotion(cube, speed)) visibleMotion = true;
 
                 if (speed < 0.02 && cube.position.y <= cubeSize/2 + 0.05) { stopCube(cube); }
                 
@@ -344,15 +307,10 @@
             }
         }
 
-        // The Nudge button is visible whenever we are waiting for everything to stop
-        const nudgeContainer = document.getElementById('nudge-container');
-        if (!activeCube && !isGameOver && cubes.length > 0) {
-            nudgeContainer.style.display = 'block';
-        } else {
-            nudgeContainer.style.display = 'none';
-        }
-
-        if (!boardIsActive && !activeCube && !isGameOver && effects.length === 0) spawnShooter();
+        const now = performance.now();
+        if (visibleMotion || activeCube || effects.length > 0) lastVisibleMotionTime = now;
+        const isStalled = now - lastVisibleMotionTime >= stalledSpawnDelayMs;
+        if (shouldSpawnShooter(boardIsActive, isStalled)) spawnShooter();
         renderer.render(scene, camera);
     }
 
@@ -714,4 +672,3 @@
 </script>
 </body>
 </html>
-
