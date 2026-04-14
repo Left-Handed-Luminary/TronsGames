@@ -286,10 +286,19 @@
 
                 if (speed < 0.02 && cube.position.y <= cubeSize/2 + 0.05) { stopCube(cube); }
                 
-                // Sliding Far Wall
+                // Bouncing Far Wall
                 if (cube.position.z < -worldDepth/2 + 0.5) {
                     cube.position.z = -worldDepth/2 + 0.5;
-                    if (cube.userData.velocity.z < 0) cube.userData.velocity.z = 0;
+                    if (cube.userData.velocity.z < 0) {
+                        cube.userData.velocity.z *= -0.6;
+                        cube.userData.velocity.x += (Math.random() - 0.5) * 0.08;
+                        cube.userData.angularVelocity.set(
+                            (Math.random()-0.5)*0.4,
+                            (Math.random()-0.5)*0.4,
+                            (Math.random()-0.5)*0.4
+                        );
+                        popCube(cube);
+                    }
                 }
                 
                 // Lose conditions
@@ -304,6 +313,12 @@
                 if (Math.abs(cube.position.x) > worldWidth/2 - 0.55) {
                     cube.position.x = Math.sign(cube.position.x) * (worldWidth/2 - 0.55);
                     cube.userData.velocity.x *= -0.5;
+                    cube.userData.angularVelocity.set(
+                        (Math.random()-0.5)*0.3,
+                        (Math.random()-0.5)*0.3,
+                        (Math.random()-0.5)*0.3
+                    );
+                    popCube(cube);
                 }
 
                 // Collisions
@@ -386,6 +401,14 @@
                 other.position.add(sep);
             }
             popCube(moving); popCube(other);
+            // Add spin on impact for visual pop
+            const spin = 0.3;
+            moving.userData.angularVelocity.add(new THREE.Vector3(
+                (Math.random()-0.5)*spin, (Math.random()-0.5)*spin, (Math.random()-0.5)*spin
+            ));
+            other.userData.angularVelocity.add(new THREE.Vector3(
+                (Math.random()-0.5)*spin, (Math.random()-0.5)*spin, (Math.random()-0.5)*spin
+            ));
         }
     }
 
