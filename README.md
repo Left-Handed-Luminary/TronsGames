@@ -2,6 +2,10 @@
 
 A small arcade-style game collection built as an experiment in rapid AI-assisted development.
 
+This site is hosted inside of github. To play the games:
+https://left-handed-luminary.github.io/TronsGames/
+
+
 This repository contains a set of self-contained browser games. Each game was generated in one shot with Gemini as a single-page HTML file, then saved as an individual playable page. The goal was to test how far a modern AI coding assistant can go from prompt to playable prototype without a traditional multi-file project structure.
 
 ## About the Project
