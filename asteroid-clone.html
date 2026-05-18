@@ -166,11 +166,11 @@
         <p id="overlay-score" class="text-xl mb-4">Final Score: 0</p>
         <button id="start-button">RESTART</button> <!-- Button now uses event listener -->
 
-        <!-- Gemini API Integration: Score Commentary and TTS -->
+        <!-- Score Commentary and TTS -->
         <div id="gemini-output" class="mt-6 w-full max-w-sm text-center p-3 rounded-lg bg-[#333344] border border-[#ff4d6d55]">
             <p id="score-commentary" class="text-md text-[#ff4d6d] font-bold mb-2">Awaiting score analysis...</p>
             <button id="tts-button" class="px-4 py-2 text-sm rounded transition-all disabled:opacity-50" disabled>
-                <span id="tts-text">✨ Hear Your Fate (Loading TTS) ✨</span>
+                <span id="tts-text">✨ Hear Your Fate (Loading Voice) ✨</span>
             </button>
         </div>
         
@@ -343,64 +343,10 @@
     // --- Gemini API State ---
     const GEMINI_API_KEY = "";
     const GEMINI_TEXT_MODEL = "gemini-2.5-flash-preview-05-20";
-    const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
-    let audioBlobUrl = null;
-
-    // --- Utility Functions for Gemini TTS ---
-
-    function base64ToArrayBuffer(base64) {
-        try {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        } catch (e) {
-            console.error("Base64 decoding failed during TTS processing:", e);
-            return new ArrayBuffer(0); 
-        }
-    }
-
-    function pcmToWav(pcm16, sampleRate) {
-        const numChannels = 1;
-        const bytesPerSample = 2;
-
-        const buffer = new ArrayBuffer(44 + pcm16.length * bytesPerSample);
-        const view = new DataView(buffer);
-        let offset = 0;
-
-        function writeString(s) {
-            for (let i = 0; i < s.length; i++) {
-                view.setUint8(offset + i, s.charCodeAt(i));
-            }
-            offset += s.length;
-        }
-
-        writeString('RIFF');
-        view.setUint32(offset, 36 + pcm16.length * bytesPerSample, true); offset += 4;
-        writeString('WAVE');
-
-        writeString('fmt ');
-        view.setUint32(offset, 16, true); offset += 4;
-        view.setUint16(offset, 1, true); offset += 2;
-        view.setUint16(offset, numChannels, true); offset += 2;
-        view.setUint32(offset, sampleRate, true); offset += 4;
-        view.setUint32(offset, sampleRate * numChannels * bytesPerSample, true); offset += 4;
-        view.setUint16(offset, numChannels * bytesPerSample, true); offset += 2;
-        view.setUint16(offset, bytesPerSample * 8, true); offset += 2;
-
-        writeString('data');
-        view.setUint32(offset, pcm16.length * bytesPerSample, true); offset += 4;
-
-        for (let i = 0; i < pcm16.length; i++) {
-            view.setInt16(offset, pcm16[i], true);
-            offset += 2;
-        }
-
-        return new Blob([buffer], { type: 'audio/wav' });
-    }
+    const isSpeechSynthesisSupported = typeof window !== 'undefined' &&
+        'speechSynthesis' in window &&
+        'SpeechSynthesisUtterance' in window;
+    let latestTtsText = "";
 
     async function exponentialBackoffFetch(url, options, maxRetries = 5, delay = 1000) {
         for (let i = 0; i < maxRetries; i++) {
@@ -428,90 +374,61 @@
         const ttsButton = document.getElementById('tts-button');
         const ttsText = document.getElementById('tts-text');
         
-        ttsButton.disabled = true;
-        ttsText.textContent = "✨ Generating Audio...";
+        latestTtsText = text;
 
-        try {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-            
-            const payload = {
-                contents: [{ parts: [{ text: text }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Fenrir" } 
-                        }
-                    }
-                },
-            };
-
-            const response = await exponentialBackoffFetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-            const part = result?.candidates?.[0]?.content?.parts?.[0];
-            const audioData = part?.inlineData?.data;
-            const mimeType = part?.inlineData?.mimeType;
-
-            if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
-                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
-
-                const pcmData = base64ToArrayBuffer(audioData);
-                
-                if (pcmData.byteLength === 0) {
-                    ttsText.textContent = "TTS Failed (Corrupt Data)";
-                    return;
-                }
-
-                const pcm16 = new Int16Array(pcmData);
-                const wavBlob = pcmToWav(pcm16, sampleRate);
-                
-                if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
-                audioBlobUrl = URL.createObjectURL(wavBlob);
-                
-                ttsText.textContent = "✨ Play Commentary ✨";
-            } else {
-                ttsText.textContent = "TTS Failed (No Audio)";
-                console.error("TTS API response missing audio data or invalid mimeType:", result);
-            }
-        } catch (error) {
-            console.error("Error generating TTS:", error);
-            ttsText.textContent = "TTS Failed (API Error)";
-        } finally {
-            ttsButton.disabled = false;
+        if (!isSpeechSynthesisSupported) {
+            ttsButton.disabled = true;
+            ttsText.textContent = "🔇 Voice unavailable";
+            return;
         }
+
+        window.speechSynthesis.cancel();
+        ttsButton.disabled = false;
+        ttsText.textContent = "✨ Speak Commentary ✨";
     }
 
     function playTTS() {
-        if (audioBlobUrl) {
-            const audio = new Audio(audioBlobUrl);
-            const ttsButton = document.getElementById('tts-button');
-            const originalText = document.getElementById('tts-text').textContent;
+        const ttsButton = document.getElementById('tts-button');
+        const ttsText = document.getElementById('tts-text');
 
-            audio.volume = 1.0; 
-
-            audio.play().catch(e => {
-                console.error("Audio playback failed (likely browser policy):", e);
-                document.getElementById('tts-text').textContent = "Audio blocked by browser!";
-                ttsButton.disabled = false;
-            });
-
+        if (!isSpeechSynthesisSupported) {
             ttsButton.disabled = true;
-            document.getElementById('tts-text').textContent = "🔈 Playing...";
+            ttsText.textContent = "🔇 Voice unavailable";
+            return;
+        }
 
-            audio.onended = () => {
-                ttsButton.disabled = false;
-                document.getElementById('tts-text').textContent = originalText;
-            };
-            audio.onerror = () => {
-                 ttsButton.disabled = false;
-                 document.getElementById('tts-text').textContent = "Audio Error!";
-            }
+        if (!latestTtsText) {
+            ttsText.textContent = "No commentary to speak.";
+            return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(latestTtsText);
+        utterance.rate = 1;
+        utterance.pitch = 1;
+
+        utterance.onstart = () => {
+            ttsButton.disabled = true;
+            ttsText.textContent = "🔈 Speaking...";
+        };
+
+        utterance.onend = () => {
+            ttsButton.disabled = false;
+            ttsText.textContent = "✨ Speak Commentary Again ✨";
+        };
+
+        utterance.onerror = (event) => {
+            console.error("Speech synthesis playback failed:", event);
+            ttsButton.disabled = false;
+            ttsText.textContent = "Voice blocked by browser!";
+        };
+
+        try {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
+        } catch (error) {
+            console.error("Speech synthesis unavailable at playback time:", error);
+            ttsButton.disabled = false;
+            ttsText.textContent = "Voice unavailable";
         }
     }
 
@@ -1047,11 +964,9 @@
         document.getElementById('score-commentary').textContent = "Awaiting score analysis...";
         
         document.getElementById('tts-button').disabled = true;
-        document.getElementById('tts-text').textContent = "✨ Hear Your Fate (Loading TTS) ✨";
-        if (audioBlobUrl) {
-            URL.revokeObjectURL(audioBlobUrl);
-            audioBlobUrl = null;
-        }
+        document.getElementById('tts-text').textContent = "✨ Hear Your Fate (Loading Voice) ✨";
+        latestTtsText = "";
+        if (isSpeechSynthesisSupported) window.speechSynthesis.cancel();
         
         Object.keys(keys).forEach(k => keys[k] = false);
 
