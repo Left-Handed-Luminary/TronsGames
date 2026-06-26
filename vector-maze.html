@@ -151,6 +151,286 @@
         </div>
     </div>
 
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
+// Game State
+let currentLevel = parseInt(localStorage.getItem('vector_maze_level')) || 1;
+let lives = 5;
+let lines = [];
+let isAnimating = false;
+let activeLine = null;
+
+// Designed Levels (Guaranteed no criss-cross)
+const levelsData = {
+    1: [
+        { id: 1, x1: 20, y1: 20, x2: 80, y2: 20, dx: 1, dy: 0 },
+        { id: 2, x1: 50, y1: 35, x2: 50, y2: 90, dx: 0, dy: 1 },
+        { id: 3, x1: 20, y1: 30, x2: 80, y2: 30, dx: -1, dy: 0 }
+    ],
+    2: [
+        { id: 1, x1: 15, y1: 20, x2: 85, y2: 20, dx: 1, dy: 0 },
+        { id: 2, x1: 85, y1: 30, x2: 85, y2: 85, dx: 0, dy: 1 },
+        { id: 3, x1: 80, y1: 10, x2: 15, y2: 10, dx: -1, dy: 0 }
+    ]
+};
+
+// Helper to check if two line segments intersect (to prevent criss-cross)
+function lineIntersects(a, b, c, d, p, q, r, s) {
+    let det = (c - a) * (s - q) - (r - p) * (d - b);
+    if (det === 0) return false; // Parallel
+    let lambda = ((s - q) * (r - a) + (p - r) * (s - b)) / det;
+    let gamma = ((b - d) * (r - a) + (c - a) * (s - b)) / det;
+    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+}
+
+// Generate algorithmic levels without any criss-crossing lines
+function getLevelConfig(lvl) {
+    if (levelsData[lvl]) return JSON.parse(JSON.stringify(levelsData[lvl]));
+    
+    const seedLines = [];
+    const count = Math.min(3 + Math.floor(lvl / 3), 8);
+    let attempts = 0;
+
+    while (seedLines.length < count && attempts < 200) {
+        attempts++;
+        const isVert = Math.random() > 0.5;
+        const pos = 15 + Math.floor(Math.random() * 70);
+        const start = 10 + Math.floor(Math.random() * 30);
+        const end = 60 + Math.floor(Math.random() * 30);
+
+        let newLine = {
+            id: seedLines.length,
+            x1: isVert ? pos : start,
+            y1: isVert ? start : pos,
+            x2: isVert ? pos : end,
+            y2: isVert ? end : pos,
+            dx: isVert ? 0 : (Math.random() > 0.5 ? 1 : -1),
+            dy: isVert ? (Math.random() > 0.5 ? 1 : -1) : 0
+        };
+
+        // Validate against criss-cross
+        let crosses = false;
+        for (let existing of seedLines) {
+            if (lineIntersects(newLine.x1, newLine.y1, newLine.x2, newLine.y2, existing.x1, existing.y1, existing.x2, existing.y2)) {
+                crosses = true;
+                break;
+            }
+        }
+
+        if (!crosses) {
+            seedLines.push(newLine);
+        }
+    }
+    return seedLines;
+}
+
+function initLevel() {
+    lives = 5;
+    isAnimating = false;
+    activeLine = null;
+    
+    const config = getLevelConfig(currentLevel);
+    lines = config.map(l => {
+        const x1_abs = (l.x1 / 100) * 900;
+        const y1_abs = (l.y1 / 100) * 900;
+        const x2_abs = (l.x2 / 100) * 900;
+        const y2_abs = (l.y2 / 100) * 900;
+
+        // Pointer starts at the base of the vector direction
+        const startX = l.dx > 0 ? x1_abs : (l.dx < 0 ? x2_abs : x1_abs);
+        const startY = l.dy > 0 ? y1_abs : (l.dy < 0 ? y2_abs : y1_abs);
+        const endX = l.dx > 0 ? x2_abs : (l.dx < 0 ? x1_abs : x2_abs);
+        const endY = l.dy > 0 ? y2_abs : (l.dy < 0 ? y1_abs : y2_abs);
+
+        return {
+            ...l,
+            x1: x1_abs, y1: y1_abs,
+            x2: x2_abs, y2: y2_abs,
+            px: startX, py: startY,
+            startX: startX, startY: startY,
+            endX: endX, endY: endY,
+            status: 'idle'
+        };
+    });
+
+    document.getElementById('win-screen').classList.remove('active');
+    document.getElementById('lose-screen').classList.remove('active');
+    updateUI();
+}
+
+function updateUI() {
+    document.getElementById('level-display').innerText = `LEVEL ${currentLevel}`;
+    document.getElementById('lives-display').innerText = `LIVES: ` + `❤️`.repeat(Math.max(0, lives));
+    
+    let stars = '★★★';
+    if (lives <= 2) stars = '★☆☆';
+    else if (lives <= 4) stars = '★★☆';
+    document.getElementById('stars').innerText = stars;
+}
+
+function checkCollision(px, py, activeId) {
+    for (let line of lines) {
+        if (line.id === activeId || line.status === 'cleared') continue;
+
+        const A = px - line.x1;
+        const B = py - line.y1;
+        const C = line.x2 - line.x1;
+        const D = line.y2 - line.y1;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+        if (lenSq !== 0) param = dot / lenSq;
+
+        let xx, yy;
+        if (param < 0) {
+            xx = line.x1; yy = line.y1;
+        } else if (param > 1) {
+            xx = line.x2; yy = line.y2;
+        } else {
+            xx = line.x1 + param * C;
+            yy = line.y1 + param * D;
+        }
+
+        const dx = px - xx;
+        const dy = py - yy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < 22) return true; // Collision hit-box radius
+    }
+    return false;
+}
+
+function update() {
+    if (isAnimating && activeLine) {
+        const speed = 14;
+        activeLine.px += activeLine.dx * speed;
+        activeLine.py += activeLine.dy * speed;
+
+        let reachedEnd = false;
+        if (activeLine.dx > 0 && activeLine.px >= activeLine.endX) reachedEnd = true;
+        if (activeLine.dx < 0 && activeLine.px <= activeLine.endX) reachedEnd = true;
+        if (activeLine.dy > 0 && activeLine.py >= activeLine.endY) reachedEnd = true;
+        if (activeLine.dy < 0 && activeLine.py <= activeLine.endY) reachedEnd = true;
+
+        if (checkCollision(activeLine.px, activeLine.py, activeLine.id)) {
+            activeLine.status = 'failed';
+            activeLine.px = activeLine.startX;
+            activeLine.py = activeLine.startY;
+            lives--;
+            updateUI();
+            isAnimating = false;
+            
+            if (lives <= 0) {
+                document.getElementById('lose-screen').classList.add('active');
+            }
+        } else if (reachedEnd) {
+            activeLine.status = 'cleared';
+            activeLine.px = activeLine.endX;
+            activeLine.py = activeLine.endY;
+            isAnimating = false;
+            checkWinCondition();
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw Tracks
+    lines.forEach(line => {
+        ctx.beginPath();
+        ctx.moveTo(line.x1, line.y1);
+        ctx.lineTo(line.x2, line.y2);
+        ctx.lineWidth = 6;
+        
+        if (line.status === 'cleared') ctx.strokeStyle = '#00ffcc';
+        else if (line.status === 'failed') ctx.strokeStyle = '#ff3b30';
+        else ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.stroke();
+
+        // Draw Interactive Pointer Node
+        ctx.beginPath();
+        ctx.arc(line.px, line.py, 18, 0, Math.PI * 2);
+        if (line.status === 'cleared') ctx.fillStyle = '#00ffcc';
+        else if (line.status === 'failed') ctx.fillStyle = '#ff3b30';
+        else ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        
+        // FIXED DIRECTION ARROW 
+        ctx.save();
+        ctx.translate(line.px, line.py);
+        // Calculate exact vector heading direction angle
+        let angle = Math.atan2(line.dy, line.dx);
+        ctx.rotate(angle);
+        
+        ctx.fillStyle = '#1a1a1e';
+        ctx.font = "bold 18px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("▶", 2, 0); // "▶" naturally points right (0 radians)
+        ctx.restore();
+    });
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+function checkWinCondition() {
+    if (lines.every(l => l.status === 'cleared')) {
+        let stars = '★★★';
+        if (lives <= 2) stars = '★☆☆';
+        else if (lives <= 4) stars = '★★☆';
+        
+        document.getElementById('win-stars').innerText = stars;
+        document.getElementById('win-screen').classList.add('active');
+    }
+}
+
+function nextLevel() {
+    currentLevel++;
+    localStorage.setItem('vector_maze_level', currentLevel);
+    initLevel();
+}
+
+function resetLevel() {
+    initLevel();
+}
+
+// Unified input boundary detection
+canvas.addEventListener('touchstart', handleInput);
+canvas.addEventListener('mousedown', handleInput);
+
+function handleInput(e) {
+    if (isAnimating || lives <= 0) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    const clickX = ((clientX - rect.left) / rect.width) * 900;
+    const clickY = ((clientY - rect.top) / rect.height) * 900;
+
+    for (let line of lines) {
+        if (line.status === 'cleared') continue;
+
+        const dist = Math.sqrt((clickX - line.px) ** 2 + (clickY - line.py) ** 2);
+        if (dist < 50) { 
+            line.status = 'shooting';
+            activeLine = line;
+            isAnimating = true;
+            break;
+        }
+    }
+}
+
+initLevel();
+loop();
+</script>
 </body>
 </html>
