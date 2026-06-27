@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vector Maze Puzzle Generator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1117;
+      --panel: #171b24;
+      --panel-2: #222938;
+      --text: #e7edf7;
+      --muted: #9ba7bf;
+      --accent: #52d1ff;
+      --ok: #4ade80;
+      --warn: #f59e0b;
+      --bad: #f43f5e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) 1fr;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid #2b3344;
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+    }
+
+    h1 { margin: 0 0 10px; font-size: 1.2rem; }
+    h2 { margin: 8px 0 6px; font-size: 0.95rem; color: var(--muted); }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: grid;
+      gap: 4px;
+    }
+
+    input, textarea, select, button {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid #39445c;
+      border-radius: 8px;
+      padding: 8px;
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      transition: background 120ms ease;
+    }
+
+    button:hover { background: #2b3650; }
+    button.primary { background: #1f3e55; border-color: #2f6185; }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .status {
+      white-space: pre-wrap;
+      font-size: 0.82rem;
+      line-height: 1.4;
+      color: var(--muted);
+      max-height: 210px;
+      overflow: auto;
+      background: #11151d;
+      border-radius: 8px;
+      border: 1px solid #2e374b;
+      padding: 8px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: calc(100vh - 24px);
+      background: var(--panel);
+      border: 1px solid #2b3344;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    canvas.dragging { cursor: grabbing; }
+
+    .overlay {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      background: rgba(12, 15, 22, 0.82);
+      border: 1px solid #2a3243;
+      border-radius: 8px;
+      padding: 8px;
+      pointer-events: none;
+      max-width: min(520px, calc(100% - 20px));
+    }
+
+    .good { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+
+    @media (max-width: 960px) {
+      body { grid-template-columns: 1fr; }
+      .canvas-wrap { min-height: 62vh; }
+    }
+  </style>
+</head>
+<body>
+  <section class="panel controls">
+    <h1>Vector Maze Puzzle Generator</h1>
+
+    <div class="row">
+      <label>Seed (optional)
+        <input id="seedInput" type="text" placeholder="e.g. 12345" />
+      </label>
+      <label>Target puzzle count
+        <input id="targetCountInput" type="number" min="1" max="5000" value="1000" />
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button id="generateBtn" class="primary">Generate</button>
+      <button id="validateBtn">Validate</button>
+      <button id="exportBtn">Export JSON</button>
+      <button id="importBtn">Import JSON</button>
+    </div>
+    <input id="importFileInput" type="file" accept="application/json" hidden />
+
+    <h2>Puzzle selection</h2>
+    <div class="row">
+      <label>Index
+        <input id="puzzleIndexInput" type="number" min="0" value="0" />
+      </label>
+      <label>Total
+        <input id="puzzleCountDisplay" type="text" value="0" readonly />
+      </label>
+    </div>
+
+    <h2>Solution view</h2>
+    <div class="row">
+      <label>Step
+        <input id="stepInput" type="range" min="0" max="0" value="0" />
+      </label>
+      <label>Step value
+        <input id="stepValue" type="text" value="0" readonly />
+      </label>
+    </div>
+    <label><input id="showSolutionToggle" type="checkbox" checked style="width:auto; margin-right: 8px;" />Show solution order</label>
+    <div class="btn-row">
+      <button id="prevStepBtn">Step -</button>
+      <button id="nextStepBtn">Step +</button>
+      <button id="resetViewBtn">Reset View</button>
+      <button id="fitViewBtn">Fit Puzzle</button>
+    </div>
+
+    <h2>Selected puzzle metrics</h2>
+    <div class="metrics" id="metricsBox"></div>
+
+    <h2>Status</h2>
+    <div id="status" class="status">Ready.</div>
+  </section>
+
+  <section class="canvas-wrap">
+    <canvas id="canvas" width="1400" height="900"></canvas>
+    <div class="overlay" id="canvasHint">Wheel: zoom | Drag: pan | Click controls to inspect solution order.</div>
+  </section>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const metricsBox = document.getElementById('metricsBox');
+    const seedInput = document.getElementById('seedInput');
+    const targetCountInput = document.getElementById('targetCountInput');
+    const puzzleIndexInput = document.getElementById('puzzleIndexInput');
+    const puzzleCountDisplay = document.getElementById('puzzleCountDisplay');
+    const stepInput = document.getElementById('stepInput');
+    const stepValue = document.getElementById('stepValue');
+    const showSolutionToggle = document.getElementById('showSolutionToggle');
+
+    const DIRECTIONS = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 }
+    ];
+
+    let puzzles = [];
+    let selectedPuzzleIndex = 0;
+    let showSolution = true;
+    let currentStep = 0;
+
+    const view = {
+      scale: 48,
+      offsetX: canvas.width * 0.5,
+      offsetY: canvas.height * 0.5,
+      dragging: false,
+      dragStartX: 0,
+      dragStartY: 0,
+      originOffsetX: 0,
+      originOffsetY: 0
+    };
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function mulberry32(seed) {
+      return function() {
+        let t = (seed += 0x6d2b79f5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function hashSeed(value) {
+      const text = String(value || '').trim();
+      if (!text) return Date.now() >>> 0;
+      if (/^\d+$/.test(text)) return Number(text) >>> 0;
+      let hash = 2166136261;
+      for (let i = 0; i < text.length; i++) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+
+    function makeRng(seedValue) {
+      return mulberry32(hashSeed(seedValue));
+    }
+
+    function randInt(rng, min, max) {
+      return Math.floor(rng() * (max - min + 1)) + min;
+    }
+
+    function randomChoice(rng, arr) {
+      return arr[Math.floor(rng() * arr.length)];
+    }
+
+    function isVectorSafe(vector, remaining) {
+      for (const other of remaining) {
+        if (other.id === vector.id) continue;
+        const rx = other.x - vector.x;
+        const ry = other.y - vector.y;
+        const dot = rx * vector.dx + ry * vector.dy;
+        if (dot <= 0) continue;
+        const cross = rx * vector.dy - ry * vector.dx;
+        if (cross === 0) return false;
+      }
+      return true;
+    }
+
+    function listSafeMoves(remaining) {
+      const safe = [];
+      for (const v of remaining) {
+        if (isVectorSafe(v, remaining)) safe.push(v.id);
+      }
+      return safe;
+    }
+
+    function solvePuzzle(vectors) {
+      const byId = new Map(vectors.map(v => [v.id, v]));
+      const allIds = vectors.map(v => v.id);
+      const memo = new Map();
+      const branching = [];
+
+      function keyFromIds(ids) {
+        return ids.slice().sort().join('|');
+      }
+
+      function dfs(remainingIds, path) {
+        if (remainingIds.length === 0) return path.slice();
+        const memoKey = keyFromIds(remainingIds);
+        if (memo.has(memoKey)) return null;
+
+        const remainingVectors = remainingIds.map(id => byId.get(id));
+        const safeIds = listSafeMoves(remainingVectors);
+        branching.push(safeIds.length);
+
+        if (path.length === 0 && safeIds.length === 0) return null;
+
+        if (safeIds.length === 0) {
+          memo.set(memoKey, false);
+          return null;
+        }
+
+        for (const id of safeIds) {
+          const next = remainingIds.filter(candidate => candidate !== id);
+          path.push(id);
+          const solved = dfs(next, path);
+          if (solved) return solved;
+          path.pop();
+        }
+
+        memo.set(memoKey, false);
+        return null;
+      }
+
+      const solution = dfs(allIds, []);
+      const openingSafeMoves = listSafeMoves(vectors).length;
+      const avgBranching = branching.length
+        ? branching.reduce((sum, n) => sum + n, 0) / branching.length
+        : 0;
+
+      return {
+        solvable: Array.isArray(solution) && solution.length === vectors.length,
+        solution: solution || [],
+        openingSafeMoves,
+        avgBranching
+      };
+    }
+
+    function longestDependencyChain(vectors) {
+      const blockers = new Map();
+      for (const v of vectors) {
+        const deps = [];
+        for (const other of vectors) {
+          if (other.id === v.id) continue;
+          const rx = other.x - v.x;
+          const ry = other.y - v.y;
+          const dot = rx * v.dx + ry * v.dy;
+          const cross = rx * v.dy - ry * v.dx;
+          if (dot > 0 && cross === 0) deps.push(other.id);
+        }
+        blockers.set(v.id, deps);
+      }
+
+      const memo = new Map();
+
+      function depth(id, visiting) {
+        if (memo.has(id)) return memo.get(id);
+        if (visiting.has(id)) return 1;
+        visiting.add(id);
+        const deps = blockers.get(id) || [];
+        let best = 1;
+        for (const dep of deps) {
+          best = Math.max(best, 1 + depth(dep, visiting));
+        }
+        visiting.delete(id);
+        memo.set(id, best);
+        return best;
+      }
+
+      let longest = 0;
+      for (const v of vectors) {
+        longest = Math.max(longest, depth(v.id, new Set()));
+      }
+      return longest;
+    }
+
+    function computeDifficulty(vectors, solverMeta) {
+      const count = vectors.length;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const v of vectors) {
+        minX = Math.min(minX, v.x);
+        minY = Math.min(minY, v.y);
+        maxX = Math.max(maxX, v.x);
+        maxY = Math.max(maxY, v.y);
+      }
+
+      const width = Math.max(1, maxX - minX + 1);
+      const height = Math.max(1, maxY - minY + 1);
+      const density = count / (width * height);
+      const chain = longestDependencyChain(vectors);
+      const branching = solverMeta.avgBranching;
+
+      const difficultyRaw =
+        count * 1.7 +
+        chain * 8 +
+        density * 80 +
+        Math.max(0, (4 - branching)) * 7;
+
+      return {
+        difficulty: Math.round(difficultyRaw * 10) / 10,
+        metrics: {
+          totalArrows: count,
+          longestDependencyChain: chain,
+          branchingFactor: Math.round(branching * 100) / 100,
+          boardDensity: Math.round(density * 1000) / 1000,
+          boardWidth: width,
+          boardHeight: height
+        }
+      };
+    }
+
+    function validatePuzzleObject(candidate) {
+      if (!candidate || typeof candidate !== 'object') {
+        return { valid: false, reason: 'Puzzle is not an object.' };
+      }
+      if (!Array.isArray(candidate.vectors) || candidate.vectors.length === 0) {
+        return { valid: false, reason: 'Puzzle has no vectors.' };
+      }
+
+      const ids = new Set();
+      for (const vector of candidate.vectors) {
+        if (!vector || typeof vector !== 'object') return { valid: false, reason: 'Vector missing object shape.' };
+        const fields = ['id', 'x', 'y', 'dx', 'dy'];
+        for (const field of fields) {
+          if (!(field in vector)) return { valid: false, reason: `Vector missing ${field}.` };
+        }
+        if (ids.has(vector.id)) return { valid: false, reason: `Duplicate vector id: ${vector.id}` };
+        ids.add(vector.id);
+        if (![1, -1, 0].includes(vector.dx) || ![1, -1, 0].includes(vector.dy)) {
+          return { valid: false, reason: `Vector ${vector.id} has invalid direction values.` };
+        }
+        if (Math.abs(vector.dx) + Math.abs(vector.dy) !== 1) {
+          return { valid: false, reason: `Vector ${vector.id} direction must be cardinal.` };
+        }
+      }
+
+      const solverMeta = solvePuzzle(candidate.vectors);
+      if (solverMeta.openingSafeMoves === 0) {
+        return { valid: false, reason: 'No safe opening move.' };
+      }
+      if (!solverMeta.solvable) {
+        return { valid: false, reason: 'Puzzle is unsolvable.' };
+      }
+
+      return {
+        valid: true,
+        solverMeta
+      };
+    }
+
+    function createCandidatePuzzle(index, rng) {
+      const width = randInt(rng, 4, 11);
+      const height = randInt(rng, 4, 11);
+      const countMax = Math.min(width * height, randInt(rng, 6, 14));
+      const count = Math.max(4, countMax);
+      const used = new Set();
+      const vectors = [];
+
+      for (let i = 0; i < count; i++) {
+        let x = 0;
+        let y = 0;
+        let key = '';
+        let tries = 0;
+        do {
+          x = randInt(rng, 0, width - 1);
+          y = randInt(rng, 0, height - 1);
+          key = `${x},${y}`;
+          tries++;
+        } while (used.has(key) && tries < 200);
+
+        if (used.has(key)) break;
+        used.add(key);
+
+        const direction = randomChoice(rng, DIRECTIONS);
+        vectors.push({
+          id: `a${index}_${i}`,
+          x,
+          y,
+          dx: direction.dx,
+          dy: direction.dy
+        });
+      }
+
+      return {
+        id: `puzzle-${String(index).padStart(4, '0')}`,
+        vectors
+      };
+    }
+
+    function normalizePuzzleForExport(puzzle) {
+      return {
+        id: puzzle.id,
+        difficulty: puzzle.difficulty,
+        solution: puzzle.solution.slice(),
+        vectors: puzzle.vectors.map(v => ({ id: v.id, x: v.x, y: v.y, dx: v.dx, dy: v.dy }))
+      };
+    }
+
+    async function generatePuzzles() {
+      const target = Math.max(1, Number(targetCountInput.value) || 1000);
+      const rng = makeRng(seedInput.value);
+      const verified = [];
+      const rejections = {
+        malformed: 0,
+        noSafeOpening: 0,
+        unsolvable: 0
+      };
+      const maxAttempts = Math.max(target * 300, 5000);
+
+      setStatus(`Generating candidates...\nTarget: ${target}\nMax attempts: ${maxAttempts}`);
+
+      for (let attempt = 1; attempt <= maxAttempts && verified.length < target; attempt++) {
+        const candidate = createCandidatePuzzle(attempt, rng);
+        const result = validatePuzzleObject(candidate);
+
+        if (!result.valid) {
+          if (result.reason.includes('No safe opening')) rejections.noSafeOpening++;
+          else if (result.reason.includes('unsolvable')) rejections.unsolvable++;
+          else rejections.malformed++;
+        } else {
+          const score = computeDifficulty(candidate.vectors, result.solverMeta);
+          verified.push({
+            id: candidate.id,
+            difficulty: score.difficulty,
+            solution: result.solverMeta.solution,
+            vectors: candidate.vectors,
+            metrics: score.metrics
+          });
+        }
+
+        if (attempt % 100 === 0 || verified.length === target) {
+          setStatus(
+            `Generating candidates...\n` +
+            `Accepted: ${verified.length}/${target}\n` +
+            `Attempt: ${attempt}/${maxAttempts}\n` +
+            `Rejected no safe opening: ${rejections.noSafeOpening}\n` +
+            `Rejected unsolvable: ${rejections.unsolvable}\n` +
+            `Rejected malformed: ${rejections.malformed}`
+          );
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
+      puzzles = verified;
+      selectedPuzzleIndex = 0;
+      currentStep = 0;
+      syncSelectionUi();
+
+      const validText = verified.length === target
+        ? `Generation complete: ${verified.length} verified puzzles.`
+        : `Stopped after attempts limit. Verified ${verified.length}/${target}.`;
+
+      setStatus(
+        `${validText}\n` +
+        `Rejected no safe opening: ${rejections.noSafeOpening}\n` +
+        `Rejected unsolvable: ${rejections.unsolvable}\n` +
+        `Rejected malformed: ${rejections.malformed}`
+      );
+      draw();
+    }
+
+    function validateAll() {
+      if (!puzzles.length) {
+        setStatus('No puzzles loaded. Generate or import first.');
+        return;
+      }
+
+      let validCount = 0;
+      const reasons = {};
+
+      for (const puzzle of puzzles) {
+        const result = validatePuzzleObject(puzzle);
+        if (!result.valid) {
+          reasons[result.reason] = (reasons[result.reason] || 0) + 1;
+        } else {
+          validCount++;
+        }
+      }
+
+      const invalidCount = puzzles.length - validCount;
+      const reasonLines = Object.entries(reasons)
+        .map(([reason, count]) => `- ${reason}: ${count}`)
+        .join('\n');
+
+      setStatus(
+        `Validation complete.\n` +
+        `Total: ${puzzles.length}\n` +
+        `Valid: ${validCount}\n` +
+        `Invalid: ${invalidCount}` +
+        (reasonLines ? `\nReasons:\n${reasonLines}` : '\nAll puzzles valid.')
+      );
+    }
+
+    function exportJson() {
+      const output = puzzles.map(normalizePuzzleForExport);
+      const blob = new Blob([JSON.stringify(output, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'levels.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus(`Exported ${output.length} puzzle(s) as levels.json.`);
+    }
+
+    function loadImportedPuzzles(data) {
+      if (!Array.isArray(data)) throw new Error('Imported JSON must be an array of puzzles.');
+
+      const imported = [];
+      const errors = [];
+
+      data.forEach((puzzle, index) => {
+        const vectors = Array.isArray(puzzle.vectors) ? puzzle.vectors : [];
+        const candidate = {
+          id: puzzle.id || `imported-${index}`,
+          vectors: vectors.map(v => ({ id: String(v.id), x: Number(v.x), y: Number(v.y), dx: Number(v.dx), dy: Number(v.dy) }))
+        };
+
+        const result = validatePuzzleObject(candidate);
+        if (!result.valid) {
+          errors.push(`Puzzle ${index}: ${result.reason}`);
+          return;
+        }
+
+        const score = computeDifficulty(candidate.vectors, result.solverMeta);
+        imported.push({
+          id: candidate.id,
+          difficulty: Number.isFinite(Number(puzzle.difficulty)) ? Number(puzzle.difficulty) : score.difficulty,
+          solution: Array.isArray(puzzle.solution) && puzzle.solution.length === candidate.vectors.length
+            ? puzzle.solution.map(String)
+            : result.solverMeta.solution,
+          vectors: candidate.vectors,
+          metrics: score.metrics
+        });
+      });
+
+      puzzles = imported;
+      selectedPuzzleIndex = 0;
+      currentStep = 0;
+      syncSelectionUi();
+
+      setStatus(
+        `Import complete.\nLoaded: ${imported.length}\nRejected: ${errors.length}` +
+        (errors.length ? `\n${errors.slice(0, 8).join('\n')}` : '')
+      );
+      draw();
+    }
+
+    function syncSelectionUi() {
+      puzzleCountDisplay.value = String(puzzles.length);
+      puzzleIndexInput.max = String(Math.max(0, puzzles.length - 1));
+      puzzleIndexInput.value = String(Math.min(selectedPuzzleIndex, Math.max(0, puzzles.length - 1)));
+
+      const selected = puzzles[selectedPuzzleIndex];
+      const maxStep = selected ? selected.solution.length : 0;
+      stepInput.max = String(maxStep);
+      if (currentStep > maxStep) currentStep = maxStep;
+      stepInput.value = String(currentStep);
+      stepValue.value = selected ? `${currentStep} / ${maxStep}` : '0';
+      updateMetrics();
+    }
+
+    function updateMetrics() {
+      const selected = puzzles[selectedPuzzleIndex];
+      if (!selected) {
+        metricsBox.innerHTML = '<div>None</div>';
+        return;
+      }
+
+      const m = selected.metrics || {};
+      const rows = [
+        ['id', selected.id],
+        ['difficulty', selected.difficulty],
+        ['arrows', m.totalArrows ?? selected.vectors.length],
+        ['dependency chain', m.longestDependencyChain ?? '-'],
+        ['branching', m.branchingFactor ?? '-'],
+        ['density', m.boardDensity ?? '-'],
+        ['board', `${m.boardWidth ?? '-'} x ${m.boardHeight ?? '-'}`],
+        ['solution length', selected.solution.length]
+      ];
+
+      metricsBox.innerHTML = rows
+        .map(([k, v]) => `<div>${k}</div><div>${v}</div>`)
+        .join('');
+    }
+
+    function getSelectedPuzzle() {
+      if (!puzzles.length) return null;
+      selectedPuzzleIndex = Math.max(0, Math.min(puzzles.length - 1, selectedPuzzleIndex));
+      return puzzles[selectedPuzzleIndex];
+    }
+
+    function worldToScreen(x, y) {
+      return {
+        x: x * view.scale + view.offsetX,
+        y: y * view.scale + view.offsetY
+      };
+    }
+
+    function screenToWorld(x, y) {
+      return {
+        x: (x - view.offsetX) / view.scale,
+        y: (y - view.offsetY) / view.scale
+      };
+    }
+
+    function fitSelectedPuzzle() {
+      const puzzle = getSelectedPuzzle();
+      if (!puzzle) {
+        view.scale = 48;
+        view.offsetX = canvas.width * 0.5;
+        view.offsetY = canvas.height * 0.5;
+        draw();
+        return;
+      }
+
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const v of puzzle.vectors) {
+        minX = Math.min(minX, v.x);
+        minY = Math.min(minY, v.y);
+        maxX = Math.max(maxX, v.x);
+        maxY = Math.max(maxY, v.y);
+      }
+
+      const padding = 2;
+      minX -= padding;
+      minY -= padding;
+      maxX += padding;
+      maxY += padding;
+
+      const width = Math.max(1, maxX - minX);
+      const height = Math.max(1, maxY - minY);
+      const scaleX = canvas.width / width;
+      const scaleY = canvas.height / height;
+      view.scale = Math.max(12, Math.min(100, Math.min(scaleX, scaleY)));
+      view.offsetX = -minX * view.scale;
+      view.offsetY = -minY * view.scale;
+      draw();
+    }
+
+    function drawGrid() {
+      const topLeft = screenToWorld(0, 0);
+      const bottomRight = screenToWorld(canvas.width, canvas.height);
+      const minX = Math.floor(topLeft.x) - 1;
+      const minY = Math.floor(topLeft.y) - 1;
+      const maxX = Math.ceil(bottomRight.x) + 1;
+      const maxY = Math.ceil(bottomRight.y) + 1;
+
+      ctx.strokeStyle = '#273042';
+      ctx.lineWidth = 1;
+      for (let x = minX; x <= maxX; x++) {
+        const a = worldToScreen(x, minY);
+        const b = worldToScreen(x, maxY);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+      for (let y = minY; y <= maxY; y++) {
+        const a = worldToScreen(minX, y);
+        const b = worldToScreen(maxX, y);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+
+    function drawArrow(vector, orderMap) {
+      const p = worldToScreen(vector.x, vector.y);
+      const dirX = vector.dx;
+      const dirY = vector.dy;
+      const stepIndex = orderMap.get(vector.id);
+      const removed = showSolution && stepIndex !== undefined && stepIndex < currentStep;
+      const isCurrent = showSolution && stepIndex !== undefined && stepIndex === currentStep;
+      const color = removed ? '#34d399' : isCurrent ? '#f59e0b' : '#60a5fa';
+
+      const arrowLength = Math.max(16, view.scale * 0.6);
+      const baseX = p.x - dirX * arrowLength * 0.3;
+      const baseY = p.y - dirY * arrowLength * 0.3;
+      const tipX = p.x + dirX * arrowLength * 0.7;
+      const tipY = p.y + dirY * arrowLength * 0.7;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+
+      const headSize = Math.max(6, view.scale * 0.14);
+      const leftX = tipX - dirX * headSize - dirY * headSize * 0.9;
+      const leftY = tipY - dirY * headSize + dirX * headSize * 0.9;
+      const rightX = tipX - dirX * headSize + dirY * headSize * 0.9;
+      const rightY = tipY - dirY * headSize - dirX * headSize * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(leftX, leftY);
+      ctx.lineTo(rightX, rightY);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(4, view.scale * 0.1), 0, Math.PI * 2);
+      ctx.fillStyle = '#dbeafe';
+      ctx.fill();
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      if (showSolution && stepIndex !== undefined) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = `${Math.max(11, view.scale * 0.19)}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(String(stepIndex + 1), p.x, p.y - Math.max(8, view.scale * 0.18));
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGrid();
+
+      const puzzle = getSelectedPuzzle();
+      if (!puzzle) {
+        ctx.fillStyle = '#93a4c5';
+        ctx.font = '20px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Generate or import puzzles to preview.', canvas.width / 2, canvas.height / 2);
+        return;
+      }
+
+      const orderMap = new Map(puzzle.solution.map((id, idx) => [id, idx]));
+      for (const vector of puzzle.vectors) {
+        drawArrow(vector, orderMap);
+      }
+    }
+
+    function clampStep() {
+      const puzzle = getSelectedPuzzle();
+      const max = puzzle ? puzzle.solution.length : 0;
+      currentStep = Math.max(0, Math.min(max, currentStep));
+      stepInput.value = String(currentStep);
+      stepValue.value = puzzle ? `${currentStep} / ${max}` : '0';
+    }
+
+    function onResize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    }
+
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      generatePuzzles().catch(error => {
+        setStatus(`Generation failed: ${error.message}`);
+      });
+    });
+
+    document.getElementById('validateBtn').addEventListener('click', validateAll);
+    document.getElementById('exportBtn').addEventListener('click', exportJson);
+
+    const importFileInput = document.getElementById('importFileInput');
+    document.getElementById('importBtn').addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', async (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        loadImportedPuzzles(json);
+      } catch (error) {
+        setStatus(`Import failed: ${error.message}`);
+      } finally {
+        importFileInput.value = '';
+      }
+    });
+
+    puzzleIndexInput.addEventListener('input', () => {
+      selectedPuzzleIndex = Number(puzzleIndexInput.value) || 0;
+      currentStep = 0;
+      syncSelectionUi();
+      fitSelectedPuzzle();
+    });
+
+    stepInput.addEventListener('input', () => {
+      currentStep = Number(stepInput.value) || 0;
+      clampStep();
+      draw();
+    });
+
+    showSolutionToggle.addEventListener('change', () => {
+      showSolution = showSolutionToggle.checked;
+      draw();
+    });
+
+    document.getElementById('prevStepBtn').addEventListener('click', () => {
+      currentStep--;
+      clampStep();
+      draw();
+    });
+
+    document.getElementById('nextStepBtn').addEventListener('click', () => {
+      currentStep++;
+      clampStep();
+      draw();
+    });
+
+    document.getElementById('resetViewBtn').addEventListener('click', () => {
+      view.scale = 48;
+      view.offsetX = canvas.width * 0.5;
+      view.offsetY = canvas.height * 0.5;
+      draw();
+    });
+
+    document.getElementById('fitViewBtn').addEventListener('click', fitSelectedPuzzle);
+
+    canvas.addEventListener('pointerdown', (event) => {
+      view.dragging = true;
+      canvas.classList.add('dragging');
+      view.dragStartX = event.clientX;
+      view.dragStartY = event.clientY;
+      view.originOffsetX = view.offsetX;
+      view.originOffsetY = view.offsetY;
+      canvas.setPointerCapture(event.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', (event) => {
+      if (!view.dragging) return;
+      view.offsetX = view.originOffsetX + (event.clientX - view.dragStartX);
+      view.offsetY = view.originOffsetY + (event.clientY - view.dragStartY);
+      draw();
+    });
+
+    function endDrag() {
+      view.dragging = false;
+      canvas.classList.remove('dragging');
+    }
+
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+    canvas.addEventListener('pointerleave', () => {
+      if (view.dragging) endDrag();
+    });
+
+    canvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      const wx = (px - view.offsetX) / view.scale;
+      const wy = (py - view.offsetY) / view.scale;
+
+      const zoomFactor = Math.exp(-event.deltaY * 0.0015);
+      const nextScale = Math.max(8, Math.min(180, view.scale * zoomFactor));
+      view.scale = nextScale;
+      view.offsetX = px - wx * view.scale;
+      view.offsetY = py - wy * view.scale;
+      draw();
+    }, { passive: false });
+
+    window.addEventListener('resize', onResize);
+
+    syncSelectionUi();
+    onResize();
+  </script>
+</body>
+</html>
