@@ -1,436 +1,496 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vector Maze</title>
-    <style>
-        :root {
-            --bg-color: #121214;
-            --panel-color: #1a1a1e;
-            --accent-color: #00ffcc;
-            --danger-color: #ff3b30;
-            --text-color: #ffffff;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            overflow: hidden;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        #ui-container {
-            width: 100%;
-            max-width: 450px;
-            padding: 10px 20px;
-            box-sizing: border-box;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .stats {
-            font-size: 18px;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
-
-        #stars {
-            color: #ffcc00;
-            font-size: 22px;
-        }
-
-        #game-container {
-            position: relative;
-            width: 90vw;
-            height: 90vw;
-            max-width: 450px;
-            max-height: 450px;
-            background-color: var(--panel-color);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            overflow: hidden;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        /* Overlay Screens */
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(18, 18, 20, 0.85);
-            backdrop-filter: blur(4px);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
-
-        .overlay.active {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .overlay h2 {
-            font-size: 32px;
-            margin-bottom: 10px;
-            color: var(--accent-color);
-        }
-
-        .overlay-stars {
-            font-size: 40px;
-            color: #ffcc00;
-            margin-bottom: 20px;
-        }
-
-        .btn {
-            background: var(--accent-color);
-            color: #000;
-            border: none;
-            padding: 12px 32px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 25px;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0, 255, 204, 0.4);
-            transition: transform 0.1s ease;
-        }
-
-        .btn:active {
-            transform: scale(0.95);
-        }
-
-        .btn-retry {
-            background: var(--danger-color);
-            color: white;
-            box-shadow: 0 4px 15px rgba(255, 59, 48, 0.4);
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vector Maze</title>
+<style>
+  :root{
+    --bg:#1b212b;
+    --panel:#222a36;
+    --line:#aeb9cf;
+    --cleared:#00ffcc;
+    --danger:#ff453a;
+    --text:#e8edf6;
+    --accent:#4f8cff;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;overflow:hidden;user-select:none;-webkit-user-select:none;
+    touch-action:none;
+  }
+  header{
+    width:100%;max-width:520px;padding:12px 18px 6px;display:flex;
+    align-items:center;justify-content:space-between;
+  }
+  .title{font-size:18px;font-weight:700;letter-spacing:.5px;}
+  .title small{display:block;font-size:12px;font-weight:600;color:var(--accent);letter-spacing:1px;}
+  .lives{display:flex;gap:6px;}
+  .drop{width:18px;height:24px;display:inline-block;}
+  #progress-wrap{
+    width:100%;max-width:520px;padding:2px 18px 10px;display:flex;align-items:center;gap:10px;
+  }
+  #bar{flex:1;height:8px;border-radius:6px;background:#333d4d;overflow:hidden;}
+  #bar > div{height:100%;width:0;background:var(--accent);transition:width .25s ease;}
+  #pct{font-size:13px;font-weight:700;color:#9aa6bd;min-width:38px;text-align:right;}
+  #stage{
+    position:relative;width:min(94vw,520px);aspect-ratio:1/1;margin-top:4px;
+    background:var(--panel);border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.45);overflow:hidden;
+  }
+  canvas{width:100%;height:100%;display:block;}
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(20,25,33,.86);backdrop-filter:blur(3px);z-index:10;
+    opacity:0;pointer-events:none;transition:opacity .25s ease;text-align:center;padding:24px;
+  }
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .overlay h2{margin:0 0 6px;font-size:30px;}
+  .overlay .stars{font-size:38px;color:#ffcc44;margin:6px 0 14px;letter-spacing:4px;}
+  .overlay p{margin:0 0 18px;color:#aab4c8;}
+  .btn{
+    border:none;border-radius:26px;padding:12px 30px;font-size:17px;font-weight:700;cursor:pointer;
+    background:var(--cleared);color:#06231e;box-shadow:0 6px 18px rgba(0,255,204,.3);
+  }
+  .btn.danger{background:var(--danger);color:#fff;box-shadow:0 6px 18px rgba(255,69,58,.3);}
+  .btn:active{transform:scale(.96);}
+  footer{padding:10px;color:#5d6b82;font-size:12px;}
+  footer a,.linklike{color:#7f93b3;cursor:pointer;text-decoration:underline;}
+</style>
 </head>
 <body>
+  <header>
+    <div class="title" id="title">Vector Maze<small id="subtitle">LEVEL 1</small></div>
+    <div class="lives" id="lives"></div>
+  </header>
 
-    <div id="ui-container">
-        <div class="stats" id="level-display">LEVEL 1</div>
-        <div id="stars">★★★</div>
-        <div class="stats" id="lives-display">LIVES: ❤️❤️❤️❤️❤️</div>
+  <div id="progress-wrap">
+    <div id="bar"><div id="bar-fill"></div></div>
+    <div id="pct">0%</div>
+  </div>
+
+  <div id="stage">
+    <canvas id="c" width="900" height="900"></canvas>
+
+    <div class="overlay" id="win">
+      <h2 style="color:var(--cleared)">Level Clear!</h2>
+      <div class="stars" id="win-stars">★★★</div>
+      <button class="btn" id="next-btn">Next Level</button>
     </div>
 
-    <div id="game-container">
-        <canvas id="gameCanvas" width="900" height="900"></canvas>
-
-        <!-- Win Overlay -->
-        <div class="overlay" id="win-screen">
-            <h2 id="win-title">LEVEL CLEAR!</h2>
-            <div class="overlay-stars" id="win-stars">★★★</div>
-            <button class="btn" id="next-btn" onclick="nextLevel()">NEXT LEVEL</button>
-        </div>
-
-        <!-- Lose Overlay -->
-        <div class="overlay" id="lose-screen">
-            <h2 style="color: var(--danger-color);">GAME OVER</h2>
-            <p>You ran out of lives.</p>
-            <button class="btn btn-retry" onclick="resetLevel()">RETRY LEVEL</button>
-        </div>
+    <div class="overlay" id="lose">
+      <h2 style="color:var(--danger)">Out of Drops</h2>
+      <p>You ran out of lives.</p>
+      <button class="btn danger" id="retry-btn">Retry Level</button>
     </div>
+
+    <div class="overlay" id="done">
+      <h2 style="color:var(--cleared)">All Levels Cleared!</h2>
+      <p>You peeled every maze. Nice work.</p>
+      <button class="btn" id="restart-btn">Play Again</button>
+    </div>
+  </div>
+
+  <footer><span class="linklike" id="reset-link">Restart level</span></footer>
 
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+/* ============================================================
+   Vector Maze — peel-away line puzzle (M1 engine prototype)
+   See vector-maze-requirements.md for the full spec.
+   ============================================================ */
 
-// Game State
-let currentLevel = parseInt(localStorage.getItem('vector_maze_level')) || 1;
-let lives = 5;
-let lines = [];
-let isAnimating = false;
-let activeLine = null;
+const CANVAS = 900;      // internal resolution (square)
+const PAD = 56;          // board inset in px
+const W = 11;            // line thickness
+const CLR = 4;           // extra collision clearance
+const HIT = 30;          // input pick radius (px, in canvas space)
+const SPEED = 24;        // slide speed (px/frame)
+const RETURN_MULT = 1.6; // bounce-back is a bit faster
+const START_LIVES = 3;
 
-// Designed Levels (Guaranteed no criss-cross)
-const levelsData = {
-    1: [
-        { id: 1, x1: 20, y1: 20, x2: 80, y2: 20, dx: 1, dy: 0 },
-        { id: 2, x1: 50, y1: 35, x2: 50, y2: 90, dx: 0, dy: 1 },
-        { id: 3, x1: 20, y1: 30, x2: 80, y2: 30, dx: -1, dy: 0 }
-    ],
-    2: [
-        { id: 1, x1: 15, y1: 20, x2: 85, y2: 20, dx: 1, dy: 0 },
-        { id: 2, x1: 85, y1: 30, x2: 85, y2: 85, dx: 0, dy: 1 },
-        { id: 3, x1: 80, y1: 10, x2: 15, y2: 10, dx: -1, dy: 0 }
+const DIRV = { R:[1,0], L:[-1,0], U:[0,-1], D:[0,1] };
+
+/* ---- Hand-authored levels (M1). Each verified solvable on load. ----
+   points are GRID coordinates; head = which endpoint holds the pointer;
+   dir = U/D/L/R, the outward direction along the final segment.        */
+const LEVELS = [
+  {
+    name:"Warm Up", cols:8, rows:8, lives:3,
+    lines:[
+      { id:"a", points:[[1,2],[4,2]], head:"end",   dir:"R" },
+      { id:"b", points:[[6,0],[6,5]], head:"start", dir:"U" },
+      { id:"c", points:[[2,4],[2,7]], head:"end",   dir:"D" }
     ]
+  },
+  {
+    name:"Chain", cols:8, rows:8, lives:3,
+    lines:[
+      { id:"a", points:[[1,4],[3,4]], head:"end",   dir:"R" },
+      { id:"b", points:[[5,4],[5,6]], head:"end",   dir:"D" },
+      { id:"d", points:[[4,7],[6,7]], head:"start", dir:"L" },
+      { id:"e", points:[[7,1],[7,3]], head:"start", dir:"U" }
+    ]
+  },
+  {
+    name:"Tangle", cols:8, rows:8, lives:3,
+    lines:[
+      { id:"a", points:[[2,1],[5,1]], head:"end",   dir:"R" },
+      { id:"b", points:[[6,0],[6,3]], head:"start", dir:"U" },
+      { id:"c", points:[[2,3],[2,6]], head:"end",   dir:"D" },
+      { id:"d", points:[[1,7],[3,7]], head:"start", dir:"L" },
+      { id:"e", points:[[4,4],[7,4]], head:"end",   dir:"R" }
+    ]
+  }
+];
+
+/* ===================== Geometry / collision ===================== */
+
+function cellSize(level){ return (CANVAS - 2*PAD) / Math.max(level.cols, level.rows); }
+
+// Build pixel vertices for a line given its level.
+function toPx(level, line){
+  const cs = cellSize(level);
+  return line.points.map(([gx,gy]) => ({ x: PAD + gx*cs, y: PAD + gy*cs }));
+}
+
+// Segments of a line (array of {x0,y0,x1,y1}).
+function segsOf(line){
+  const s=[]; const p=line.pxBase;
+  for(let i=0;i<p.length-1;i++) s.push({x0:p[i].x,y0:p[i].y,x1:p[i+1].x,y1:p[i+1].y});
+  return s;
+}
+
+function segAABB(s, pad){
+  return {
+    minx:Math.min(s.x0,s.x1)-pad, maxx:Math.max(s.x0,s.x1)+pad,
+    miny:Math.min(s.y0,s.y1)-pad, maxy:Math.max(s.y0,s.y1)+pad
+  };
+}
+
+function lineBBox(line){
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  for(const p of line.pxBase){
+    minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x);
+    miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y);
+  }
+  return {minx,miny,maxx,maxy};
+}
+
+// Distance the line must travel in dir to leave the canvas entirely.
+function exitT(line, dir){
+  const b=lineBBox(line);
+  if(dir==="R") return CANVAS - b.minx + 6;
+  if(dir==="L") return b.maxx + 6;
+  if(dir==="D") return CANVAS - b.miny + 6;
+  return b.maxy + 6; // U
+}
+
+// Smallest forward travel t at which `mover` (sliding `dir`) contacts `other`.
+// Returns Infinity if no contact. Uses inflated axis-aligned boxes.
+function contactT(mover, other, dir){
+  const pm=W/2+CLR, ps=W/2;
+  let best=Infinity;
+  for(const ms of segsOf(mover)){
+    const m=segAABB(ms,pm);
+    for(const ss of segsOf(other)){
+      const s=segAABB(ss,ps);
+      let t;
+      if(dir==="R"){
+        if(!(m.miny<=s.maxy && s.miny<=m.maxy)) continue; // need y overlap
+        if(s.maxx<=m.minx) continue;                      // other behind
+        t=Math.max(0, s.minx-m.maxx);
+      } else if(dir==="L"){
+        if(!(m.miny<=s.maxy && s.miny<=m.maxy)) continue;
+        if(s.minx>=m.maxx) continue;
+        t=Math.max(0, m.minx-s.maxx);
+      } else if(dir==="D"){
+        if(!(m.minx<=s.maxx && s.minx<=m.maxx)) continue; // need x overlap
+        if(s.maxy<=m.miny) continue;
+        t=Math.max(0, s.miny-m.maxy);
+      } else { // U
+        if(!(m.minx<=s.maxx && s.minx<=m.maxx)) continue;
+        if(s.miny>=m.maxy) continue;
+        t=Math.max(0, m.miny-s.maxy);
+      }
+      if(t<best) best=t;
+    }
+  }
+  return best;
+}
+
+// Can `line` be removed given the set of other present lines?
+function canRemove(line, others){
+  const exit=exitT(line, line.dir);
+  for(const o of others){
+    if(o===line) continue;
+    if(contactT(line, o, line.dir) < exit) return false;
+  }
+  return true;
+}
+
+/* ===================== Solvability verifier ===================== */
+// DFS over remaining-line sets; true if every line can be peeled in some order.
+function isSolvable(lines){
+  const dead=new Set();
+  function rec(present){
+    if(present.length===0) return true;
+    const key=present.map(l=>l.id).sort().join(",");
+    if(dead.has(key)) return false;
+    for(const l of present){
+      if(canRemove(l, present)){
+        const next=present.filter(x=>x!==l);
+        if(rec(next)) return true;
+      }
+    }
+    dead.add(key);
+    return false;
+  }
+  return rec(lines.slice());
+}
+
+/* ===================== Game state ===================== */
+
+const canvas=document.getElementById("c");
+const ctx=canvas.getContext("2d");
+
+let levelIndex = clampLevel(parseInt(localStorage.getItem("vm_level"))||0);
+let level, lines, lives, active=null, animating=false;
+
+function clampLevel(i){ if(isNaN(i)||i<0) return 0; return Math.min(i, LEVELS.length-1); }
+
+function buildLevel(){
+  level = LEVELS[levelIndex];
+  lives = level.lives ?? START_LIVES;
+  lines = level.lines.map(src=>{
+    const l = { id:src.id, head:src.head, dir:src.dir, points:src.points,
+                status:"idle", offset:0, phase:"go", flash:0 };
+    l.pxBase = toPx(level, src);
+    // pointer endpoint (base, before offset)
+    l.headPt = src.head==="start" ? l.pxBase[0] : l.pxBase[l.pxBase.length-1];
+    return l;
+  });
+  // Verify solvability (defense in depth; warns rather than blocks in M1).
+  if(!isSolvable(lines.slice())){
+    console.warn(`Vector Maze: level "${level.name}" failed solvability check!`);
+  }
+  active=null; animating=false;
+  hideOverlays();
+  updateUI();
+}
+
+function present(){ return lines.filter(l=>l.status!=="cleared"); }
+
+/* ===================== Input ===================== */
+
+function pointToSeg(px,py,s){
+  const dx=s.x1-s.x0, dy=s.y1-s.y0;
+  const len=dx*dx+dy*dy;
+  let t = len? ((px-s.x0)*dx+(py-s.y0)*dy)/len : 0;
+  t=Math.max(0,Math.min(1,t));
+  const cx=s.x0+t*dx, cy=s.y0+t*dy;
+  return Math.hypot(px-cx,py-cy);
+}
+
+function pickLine(px,py){
+  let best=null, bestD=HIT;
+  for(const l of present()){
+    for(const s of segsOf(l)){
+      const d=pointToSeg(px,py,s);
+      if(d<bestD){ bestD=d; best=l; }
+    }
+  }
+  return best;
+}
+
+function canvasCoords(e){
+  const r=canvas.getBoundingClientRect();
+  const cx=e.touches? e.touches[0].clientX : e.clientX;
+  const cy=e.touches? e.touches[0].clientY : e.clientY;
+  return { x:(cx-r.left)/r.width*CANVAS, y:(cy-r.top)/r.height*CANVAS };
+}
+
+function onInput(e){
+  e.preventDefault();
+  if(animating || lives<=0) return;
+  const {x,y}=canvasCoords(e);
+  const l=pickLine(x,y);
+  if(!l) return;
+  activate(l);
+}
+canvas.addEventListener("mousedown", onInput);
+canvas.addEventListener("touchstart", onInput, {passive:false});
+
+/* ===================== Slide mechanic ===================== */
+
+function activate(line){
+  const others=present().filter(l=>l!==line);
+  const exit=exitT(line, line.dir);
+  let hit=Infinity;
+  for(const o of others) hit=Math.min(hit, contactT(line, o, line.dir));
+  active=line;
+  animating=true;
+  line.offset=0;
+  line.phase="go";
+  line.flash=0;
+  if(hit>=exit){ line.outcome="clear"; line.target=exit; }
+  else         { line.outcome="block"; line.target=hit; }
+}
+
+function tick(){
+  if(animating && active){
+    if(active.phase==="go"){
+      active.offset += SPEED;
+      if(active.offset>=active.target){
+        active.offset=active.target;
+        if(active.outcome==="clear"){
+          active.status="cleared";
+          active=null; animating=false;
+          afterClear();
+        } else {
+          active.phase="return"; active.flash=1;
+        }
+      }
+    } else { // return after a blocked move
+      active.offset -= SPEED*RETURN_MULT;
+      if(active.offset<=0){
+        active.offset=0; active.flash=0; active.status="idle";
+        active=null; animating=false;
+        afterBlock();
+      }
+    }
+  }
+  draw();
+  requestAnimationFrame(tick);
+}
+
+function afterClear(){
+  updateUI();
+  if(present().length===0) win();
+}
+
+function afterBlock(){
+  lives--;
+  updateUI();
+  if(lives<=0) lose();
+}
+
+/* ===================== Win / lose ===================== */
+
+function starsFor(){
+  const lost=(level.lives??START_LIVES)-lives;
+  if(lost===0) return 3;
+  if(lost===1) return 2;
+  return 1;
+}
+
+function win(){
+  const s=starsFor();
+  document.getElementById("win-stars").textContent="★".repeat(s)+"☆".repeat(3-s);
+  document.getElementById("win").classList.add("show");
+}
+function lose(){ document.getElementById("lose").classList.add("show"); }
+
+document.getElementById("next-btn").onclick=()=>{
+  if(levelIndex < LEVELS.length-1){
+    levelIndex++; localStorage.setItem("vm_level", levelIndex); buildLevel();
+  } else {
+    document.getElementById("win").classList.remove("show");
+    document.getElementById("done").classList.add("show");
+  }
+};
+document.getElementById("retry-btn").onclick=buildLevel;
+document.getElementById("reset-link").onclick=buildLevel;
+document.getElementById("restart-btn").onclick=()=>{
+  levelIndex=0; localStorage.setItem("vm_level",0); buildLevel();
 };
 
-// Helper to check if two line segments intersect (to prevent criss-cross)
-function lineIntersects(a, b, c, d, p, q, r, s) {
-    let det = (c - a) * (s - q) - (r - p) * (d - b);
-    if (det === 0) return false; // Parallel
-    let lambda = ((s - q) * (r - a) + (p - r) * (s - b)) / det;
-    let gamma = ((b - d) * (r - a) + (c - a) * (s - b)) / det;
-    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+function hideOverlays(){
+  for(const id of ["win","lose","done"]) document.getElementById(id).classList.remove("show");
 }
 
-// Generate algorithmic levels without any criss-crossing lines
-function getLevelConfig(lvl) {
-    if (levelsData[lvl]) return JSON.parse(JSON.stringify(levelsData[lvl]));
-    
-    const seedLines = [];
-    const count = Math.min(3 + Math.floor(lvl / 3), 8);
-    let attempts = 0;
+/* ===================== UI ===================== */
 
-    while (seedLines.length < count && attempts < 200) {
-        attempts++;
-        const isVert = Math.random() > 0.5;
-        const pos = 15 + Math.floor(Math.random() * 70);
-        const start = 10 + Math.floor(Math.random() * 30);
-        const end = 60 + Math.floor(Math.random() * 30);
+function dropSVG(filled){
+  const color=filled? "var(--accent)" : "#3a4658";
+  return `<svg class="drop" viewBox="0 0 18 24"><path d="M9 0 C9 0 1 9 1 15 a8 8 0 0 0 16 0 C17 9 9 0 9 0 Z" fill="${color}"/></svg>`;
+}
 
-        let newLine = {
-            id: seedLines.length,
-            x1: isVert ? pos : start,
-            y1: isVert ? start : pos,
-            x2: isVert ? pos : end,
-            y2: isVert ? end : pos,
-            dx: isVert ? 0 : (Math.random() > 0.5 ? 1 : -1),
-            dy: isVert ? (Math.random() > 0.5 ? 1 : -1) : 0
-        };
+function updateUI(){
+  document.getElementById("subtitle").textContent=`LEVEL ${levelIndex+1} · ${level.name}`;
+  const maxLives=level.lives??START_LIVES;
+  let html="";
+  for(let i=0;i<maxLives;i++) html+=dropSVG(i<lives);
+  document.getElementById("lives").innerHTML=html;
 
-        // Validate against criss-cross
-        let crosses = false;
-        for (let existing of seedLines) {
-            if (lineIntersects(newLine.x1, newLine.y1, newLine.x2, newLine.y2, existing.x1, existing.y1, existing.x2, existing.y2)) {
-                crosses = true;
-                break;
-            }
-        }
+  const total=lines.length, cleared=lines.filter(l=>l.status==="cleared").length;
+  const pct=Math.round(cleared/total*100);
+  document.getElementById("bar-fill").style.width=pct+"%";
+  document.getElementById("pct").textContent=pct+"%";
+}
 
-        if (!crosses) {
-            seedLines.push(newLine);
-        }
+/* ===================== Rendering ===================== */
+
+function offsetXY(line){
+  const t=line.offset||0; const v=DIRV[line.dir];
+  return { ox:v[0]*t, oy:v[1]*t };
+}
+
+function draw(){
+  ctx.clearRect(0,0,CANVAS,CANVAS);
+  drawGrid();
+  for(const line of lines){
+    if(line.status==="cleared") continue;
+    const {ox,oy}=offsetXY(line);
+    const color = line.flash ? getCss("--danger") : getCss("--line");
+
+    // line body
+    ctx.lineWidth=W; ctx.lineCap="round"; ctx.lineJoin="round";
+    ctx.strokeStyle=color;
+    ctx.beginPath();
+    line.pxBase.forEach((p,i)=>{ const x=p.x+ox,y=p.y+oy;
+      i? ctx.lineTo(x,y) : ctx.moveTo(x,y); });
+    ctx.stroke();
+
+    // pointer (cursor-like arrowhead) at the head endpoint
+    drawPointer(line.headPt.x+ox, line.headPt.y+oy, line.dir, color);
+  }
+}
+
+function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function drawGrid(){
+  const cs=cellSize(level);
+  ctx.fillStyle="rgba(255,255,255,0.05)";
+  for(let gx=0;gx<=level.cols;gx++){
+    for(let gy=0;gy<=level.rows;gy++){
+      ctx.beginPath();
+      ctx.arc(PAD+gx*cs, PAD+gy*cs, 1.6, 0, Math.PI*2);
+      ctx.fill();
     }
-    return seedLines;
+  }
 }
 
-function initLevel() {
-    lives = 5;
-    isAnimating = false;
-    activeLine = null;
-    
-    const config = getLevelConfig(currentLevel);
-    lines = config.map(l => {
-        const x1_abs = (l.x1 / 100) * 900;
-        const y1_abs = (l.y1 / 100) * 900;
-        const x2_abs = (l.x2 / 100) * 900;
-        const y2_abs = (l.y2 / 100) * 900;
-
-        // Pointer starts at the base of the vector direction
-        const startX = l.dx > 0 ? x1_abs : (l.dx < 0 ? x2_abs : x1_abs);
-        const startY = l.dy > 0 ? y1_abs : (l.dy < 0 ? y2_abs : y1_abs);
-        const endX = l.dx > 0 ? x2_abs : (l.dx < 0 ? x1_abs : x2_abs);
-        const endY = l.dy > 0 ? y2_abs : (l.dy < 0 ? y1_abs : y2_abs);
-
-        return {
-            ...l,
-            x1: x1_abs, y1: y1_abs,
-            x2: x2_abs, y2: y2_abs,
-            px: startX, py: startY,
-            startX: startX, startY: startY,
-            endX: endX, endY: endY,
-            status: 'idle'
-        };
-    });
-
-    document.getElementById('win-screen').classList.remove('active');
-    document.getElementById('lose-screen').classList.remove('active');
-    updateUI();
+function drawPointer(x,y,dir,color){
+  const v=DIRV[dir]; const ang=Math.atan2(v[1],v[0]);
+  const size=W*1.7;
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(ang);
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(size, 0);
+  ctx.lineTo(-size*0.5, size*0.78);
+  ctx.lineTo(-size*0.5,-size*0.78);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
-function updateUI() {
-    document.getElementById('level-display').innerText = `LEVEL ${currentLevel}`;
-    document.getElementById('lives-display').innerText = `LIVES: ` + `❤️`.repeat(Math.max(0, lives));
-    
-    let stars = '★★★';
-    if (lives <= 2) stars = '★☆☆';
-    else if (lives <= 4) stars = '★★☆';
-    document.getElementById('stars').innerText = stars;
-}
-
-function checkCollision(px, py, activeId) {
-    for (let line of lines) {
-        if (line.id === activeId || line.status === 'cleared') continue;
-
-        const A = px - line.x1;
-        const B = py - line.y1;
-        const C = line.x2 - line.x1;
-        const D = line.y2 - line.y1;
-
-        const dot = A * C + B * D;
-        const lenSq = C * C + D * D;
-        let param = -1;
-        if (lenSq !== 0) param = dot / lenSq;
-
-        let xx, yy;
-        if (param < 0) {
-            xx = line.x1; yy = line.y1;
-        } else if (param > 1) {
-            xx = line.x2; yy = line.y2;
-        } else {
-            xx = line.x1 + param * C;
-            yy = line.y1 + param * D;
-        }
-
-        const dx = px - xx;
-        const dy = py - yy;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < 22) return true; // Collision hit-box radius
-    }
-    return false;
-}
-
-function update() {
-    if (isAnimating && activeLine) {
-        const speed = 14;
-        activeLine.px += activeLine.dx * speed;
-        activeLine.py += activeLine.dy * speed;
-
-        let reachedEnd = false;
-        if (activeLine.dx > 0 && activeLine.px >= activeLine.endX) reachedEnd = true;
-        if (activeLine.dx < 0 && activeLine.px <= activeLine.endX) reachedEnd = true;
-        if (activeLine.dy > 0 && activeLine.py >= activeLine.endY) reachedEnd = true;
-        if (activeLine.dy < 0 && activeLine.py <= activeLine.endY) reachedEnd = true;
-
-        if (checkCollision(activeLine.px, activeLine.py, activeLine.id)) {
-            activeLine.status = 'failed';
-            activeLine.px = activeLine.startX;
-            activeLine.py = activeLine.startY;
-            lives--;
-            updateUI();
-            isAnimating = false;
-            
-            if (lives <= 0) {
-                document.getElementById('lose-screen').classList.add('active');
-            }
-        } else if (reachedEnd) {
-            activeLine.status = 'cleared';
-            activeLine.px = activeLine.endX;
-            activeLine.py = activeLine.endY;
-            isAnimating = false;
-            checkWinCondition();
-        }
-    }
-}
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw Tracks
-    lines.forEach(line => {
-        ctx.beginPath();
-        ctx.moveTo(line.x1, line.y1);
-        ctx.lineTo(line.x2, line.y2);
-        ctx.lineWidth = 6;
-        
-        if (line.status === 'cleared') ctx.strokeStyle = '#00ffcc';
-        else if (line.status === 'failed') ctx.strokeStyle = '#ff3b30';
-        else ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.stroke();
-
-        // Draw Interactive Pointer Node
-        ctx.beginPath();
-        ctx.arc(line.px, line.py, 18, 0, Math.PI * 2);
-        if (line.status === 'cleared') ctx.fillStyle = '#00ffcc';
-        else if (line.status === 'failed') ctx.fillStyle = '#ff3b30';
-        else ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        
-        // FIXED DIRECTION ARROW 
-        ctx.save();
-        ctx.translate(line.px, line.py);
-        // Calculate exact vector heading direction angle
-        let angle = Math.atan2(line.dy, line.dx);
-        ctx.rotate(angle);
-        
-        ctx.fillStyle = '#1a1a1e';
-        ctx.font = "bold 18px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("▶", 2, 0); // "▶" naturally points right (0 radians)
-        ctx.restore();
-    });
-}
-
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
-
-function checkWinCondition() {
-    if (lines.every(l => l.status === 'cleared')) {
-        let stars = '★★★';
-        if (lives <= 2) stars = '★☆☆';
-        else if (lives <= 4) stars = '★★☆';
-        
-        document.getElementById('win-stars').innerText = stars;
-        document.getElementById('win-screen').classList.add('active');
-    }
-}
-
-function nextLevel() {
-    currentLevel++;
-    localStorage.setItem('vector_maze_level', currentLevel);
-    initLevel();
-}
-
-function resetLevel() {
-    initLevel();
-}
-
-// Unified input boundary detection
-canvas.addEventListener('touchstart', handleInput);
-canvas.addEventListener('mousedown', handleInput);
-
-function handleInput(e) {
-    if (isAnimating || lives <= 0) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    const clickX = ((clientX - rect.left) / rect.width) * 900;
-    const clickY = ((clientY - rect.top) / rect.height) * 900;
-
-    for (let line of lines) {
-        if (line.status === 'cleared') continue;
-
-        const dist = Math.sqrt((clickX - line.px) ** 2 + (clickY - line.py) ** 2);
-        if (dist < 50) { 
-            line.status = 'shooting';
-            activeLine = line;
-            isAnimating = true;
-            break;
-        }
-    }
-}
-
-initLevel();
-loop();
+/* ===================== Boot ===================== */
+buildLevel();
+requestAnimationFrame(tick);
 </script>
 </body>
 </html>
