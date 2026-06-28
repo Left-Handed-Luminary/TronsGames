@@ -278,18 +278,26 @@ Modeled on the screenshots:
 
 ---
 
-## 14. Open Questions
+## 14. Decisions & Open Questions
 
-1. **Lives count:** 3 (matches screenshots) vs. 5 (old prototype). Default chosen: **3**.
-2. **Pointer direction freedom:** only outward-along-final-segment (matches screenshots),
-   or also allow a pointer that moves the line perpendicular to its end segment? Default:
-   **outward-along-final-segment only** for v1.
-3. **Number of levels** to ship initially, and the difficulty curve (how many easy →
-   super-hard).
-4. **Board sizes** per difficulty (grid `cols × rows`).
-5. **Hints:** include in v1 or defer?
-6. **Collision precision:** exact geometry vs. rasterized sweep for v1.
-7. **Line thickness / clearance** value (affects how "tight" near-misses feel).
+**Resolved:**
+
+- **Lives count:** **3** (matches screenshots; old prototype's 5 dropped).
+- **Pointer direction:** **outward-along-final-segment only** for v1 (matches
+  screenshots).
+- **Initial level pack:** **~20 levels**, hand-curated difficulty curve from easy →
+  hard. The generator may produce more candidates; we cherry-pick ~20 good ones.
+- **Collision precision:** **exact geometry** — segment-vs-segment swept math for smooth,
+  precise near-misses (§5).
+- **Hints:** **deferred** — not in v1. (`solution` is still stored in the JSON for the
+  verifier and future hint support.)
+
+**Still open:**
+
+- **Board sizes** per difficulty (grid `cols × rows`) — to be tuned while building the
+  level pack.
+- **Line thickness / clearance** value (affects how "tight" near-misses feel) — to be
+  tuned during M1.
 
 ---
 
