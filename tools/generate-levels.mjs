@@ -41,15 +41,17 @@ function mulberry32(seed){
 const ri = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1)); // inclusive
 
 /* ---------- difficulty presets ----------
-   maxStartFrac = quality gate: at most this fraction of lines may be
-   removable on the first move (lower = more forced ordering = harder).
-   maxSeg = cap on a single segment's grid length (smaller packs denser). */
+   Portrait grids (cols x rows) at reference-screenshot scale. `lines` is
+   [floor, cap]: the generator packs up to `cap` and accepts any board with at
+   least `floor` lines once placement stalls.
+   maxStartFrac = quality gate: at most this fraction of lines may be removable
+   on the first move. maxSeg = cap on a single segment's grid length. */
 const PRESETS = {
-  easy:       { grid:8,  lines:[4,6],   maxBends:1, maxSeg:6,  lives:3, maxStartFrac:0.80, candTries:30 },
-  medium:     { grid:10, lines:[7,10],  maxBends:2, maxSeg:7,  lives:3, maxStartFrac:0.55, candTries:40 },
-  hard:       { grid:12, lines:[12,16], maxBends:3, maxSeg:8,  lives:3, maxStartFrac:0.45, candTries:55 },
-  superhard:  { grid:16, lines:[22,30], maxBends:3, maxSeg:9,  lives:3, maxStartFrac:0.45, candTries:45 },
-  dense:      { grid:20, lines:[38,52], maxBends:4, maxSeg:10, lives:3, maxStartFrac:0.55, candTries:36 }
+  easy:       { cols:8,  rows:11, lines:[8,12],    maxBends:1, maxSeg:5, lives:3, maxStartFrac:0.95, candTries:8 },
+  medium:     { cols:11, rows:16, lines:[22,32],   maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.92, candTries:8 },
+  hard:       { cols:15, rows:24, lines:[44,60],   maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.90, candTries:8 },
+  superhard:  { cols:20, rows:32, lines:[64,88],   maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.90, candTries:8 },
+  dense:      { cols:24, rows:40, lines:[92,120],  maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.92, candTries:8 }
 };
 
 /* ---------- candidate line generation ---------- */
@@ -114,15 +116,14 @@ function newlyBlocked(placed, cand){
 }
 
 function buildLevel(rng, preset, name, difficulty){
-  const cols = preset.grid, rows = preset.grid;
+  const cols = preset.cols, rows = preset.rows;
   const level = { cols, rows };
-  const target = ri(rng, preset.lines[0], preset.lines[1]);
+  const floor = preset.lines[0], cap = preset.lines[1];
   const placed = [];           // placement order; removal order is the reverse
-  let attempts = 0;
-  const budget = 6000;
+  let stall = 0;
+  const STALL = 600;           // give up packing once we can't place anything
 
-  while(placed.length < target && attempts < budget){
-    attempts++;
+  while(placed.length < cap && stall < STALL){
     let best = null, bestScore = -1;
     for(let k=0; k<preset.candTries; k++){
       const cand = randomCandidate(rng, cols, rows, preset.maxBends, preset.maxSeg);
@@ -136,11 +137,11 @@ function buildLevel(rng, preset, name, difficulty){
       const score = newlyBlocked(placed, line)*100 + line.points.length*3 + rng();
       if(score > bestScore){ bestScore = score; best = line; }
     }
-    if(!best) continue;
-    placed.push(best);
+    if(!best){ stall++; continue; }
+    placed.push(best); stall = 0;
   }
 
-  if(placed.length < Math.max(2, target-1)) return null; // too sparse
+  if(placed.length < floor) return null; // stalled too sparse — retry the level
 
   // Quality gate: reject boards where too much is removable up front.
   const startFrac = removableAtStart(placed).length / placed.length;

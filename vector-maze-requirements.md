@@ -52,9 +52,12 @@ Only one line animates at a time; input is locked during animation.
   grid coordinate `(gx, gy)` with `0 ≤ gx ≤ cols`, `0 ≤ gy ≤ rows`.
 - All line segments are **axis-aligned** (horizontal or vertical). Diagonals are not
   allowed.
-- The canvas is rendered at a fixed internal resolution (e.g. `900×900`) and scaled to
-  fit; grid coordinates map to pixels via a cell size. (Portrait boards like the
-  screenshots are allowed — `cols`/`rows` need not be equal.)
+- A **fixed cell size** (px) maps grid coordinates to pixels, so the internal canvas
+  dimensions follow the grid (`PAD*2 + cols*CELL` × `PAD*2 + rows*CELL`). Boards are
+  **portrait** like the screenshots (`cols`/`rows` need not be equal); the canvas is
+  scaled to fit the viewport while preserving the grid aspect ratio.
+- Grid sizes scale with difficulty (matched to the reference screenshots): easy `8×11`,
+  medium `11×16`, hard `15×24`, super-hard `20×32`, dense/"Insane" `24×40`.
 
 ---
 
@@ -312,12 +315,10 @@ Modeled on the screenshots:
 - **Hints:** **deferred** — not in v1. (`solution` is still stored in the JSON for the
   verifier and future hint support.)
 
-**Still open:**
-
-- **Board sizes** per difficulty (grid `cols × rows`) — to be tuned while building the
-  level pack.
-- **Line thickness / clearance** value (affects how "tight" near-misses feel) — to be
-  tuned during M1.
+- **Board sizes** per difficulty (portrait, matched to the screenshots): easy `8×11`,
+  medium `11×16`, hard `15×24`, super-hard `20×32`, dense `24×40`. Line counts scale to
+  ~12 / ~30 / ~50 / ~75 / ~100+ respectively.
+- **Line thickness / clearance**: `W = 12`, `CLR = 4` on a fixed `CELL = 32` px cell.
 
 ---
 

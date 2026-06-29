@@ -10,28 +10,27 @@
    Pure ES module: no DOM, no canvas. Operates on plain objects.
    ============================================================ */
 
-export const CANVAS = 900;   // internal play resolution (square)
-export const PAD = 56;       // board inset in px
-export const W = 11;         // line thickness
+// Fixed cell size (px) so boards scale to any grid (square or portrait); the
+// canvas dimensions follow the grid. The on-screen canvas is scaled to fit.
+export const CELL = 32;      // px per grid cell (internal)
+export const PAD = 40;       // board inset in px
+export const W = 12;         // line thickness
 export const CLR = 4;        // extra collision clearance
 
 export const DIRV = { R:[1,0], L:[-1,0], U:[0,-1], D:[0,1] };
 
-export function cellSize(level){
-  return (CANVAS - 2*PAD) / Math.max(level.cols, level.rows);
-}
+export function canvasW(level){ return PAD*2 + level.cols*CELL; }
+export function canvasH(level){ return PAD*2 + level.rows*CELL; }
 
 // Build pixel vertices for a line's grid points.
 export function toPx(level, points){
-  const cs = cellSize(level);
-  return points.map(([gx,gy]) => ({ x: PAD + gx*cs, y: PAD + gy*cs }));
+  return points.map(([gx,gy]) => ({ x: PAD + gx*CELL, y: PAD + gy*CELL }));
 }
 
-// Attach pxBase (+ derived head point) to a raw {id,points,head,dir}.
+// Attach pxBase + canvas dims (needed for the head-ray edge distance).
 export function makeLine(level, src){
   const pxBase = toPx(level, src.points);
-  const headPt = src.head === "start" ? pxBase[0] : pxBase[pxBase.length-1];
-  return { ...src, pxBase, headPt };
+  return { ...src, pxBase, cw:canvasW(level), ch:canvasH(level) };
 }
 
 export function segsOf(line){
@@ -45,15 +44,6 @@ export function segAABB(s, pad){
     minx:Math.min(s.x0,s.x1)-pad, maxx:Math.max(s.x0,s.x1)+pad,
     miny:Math.min(s.y0,s.y1)-pad, maxy:Math.max(s.y0,s.y1)+pad
   };
-}
-
-export function lineBBox(line){
-  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
-  for(const p of line.pxBase){
-    minx=Math.min(minx,p.x); maxx=Math.max(maxx,p.x);
-    miny=Math.min(miny,p.y); maxy=Math.max(maxy,p.y);
-  }
-  return {minx,miny,maxx,maxy};
 }
 
 // SNAKE MOVEMENT MODEL
@@ -70,11 +60,12 @@ export function headPoint(line){
   return line.head === "start" ? line.pxBase[0] : line.pxBase[line.pxBase.length-1];
 }
 
-// Distance from the head endpoint to the board edge along the pointer direction.
-export function rayLenToEdge(E, dir){
-  if(dir==="R") return CANVAS - E.x;
+// Distance from a line's head endpoint to the board edge along its direction.
+export function reachToEdge(line){
+  const E=headPoint(line), dir=line.dir;
+  if(dir==="R") return line.cw - E.x;
   if(dir==="L") return E.x;
-  if(dir==="D") return CANVAS - E.y;
+  if(dir==="D") return line.ch - E.y;
   return E.y; // U
 }
 
@@ -115,7 +106,7 @@ export function rayHitDist(E, dir, others){
 // Can `line` be removed given the other present lines? (snake: head-ray clear)
 export function canRemove(line, others){
   const E=headPoint(line);
-  const reach=rayLenToEdge(E, line.dir);
+  const reach=reachToEdge(line);
   const rest=others.filter(o=>o!==line);
   return rayHitDist(E, line.dir, rest) >= reach;
 }
