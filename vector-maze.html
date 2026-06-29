@@ -62,6 +62,23 @@
   .btn:active{transform:scale(.96);}
   footer{padding:10px;color:#5d6b82;font-size:12px;}
   footer a,.linklike{color:#7f93b3;cursor:pointer;text-decoration:underline;}
+  .ov-link{margin-top:14px;font-size:14px;}
+
+  /* Level select */
+  .overlay.fs{position:fixed;z-index:50;}
+  .level-grid{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:8px;
+    width:min(92vw,420px);max-height:62vh;overflow-y:auto;padding:4px;margin:4px 0 18px;
+  }
+  .lvl-btn{
+    aspect-ratio:1/1;border:none;border-radius:10px;cursor:pointer;background:#2c3645;
+    color:var(--text);font-weight:700;font-size:17px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2px;padding:0;
+  }
+  .lvl-btn.current{outline:2px solid var(--accent);outline-offset:-2px;}
+  .lvl-btn.locked{background:#212833;color:#46505f;cursor:default;}
+  .lvl-btn .mini{font-size:9px;line-height:9px;height:9px;color:#ffcc44;letter-spacing:1px;}
+  .lvl-btn:not(.locked):active{transform:scale(.94);}
 </style>
 </head>
 <body>
@@ -82,6 +99,7 @@
       <h2 style="color:var(--cleared)">Level Clear!</h2>
       <div class="stars" id="win-stars">★★★</div>
       <button class="btn" id="next-btn">Next Level</button>
+      <span class="linklike ov-link" id="win-levels">Level Select</span>
     </div>
 
     <div class="overlay" id="lose">
@@ -97,7 +115,17 @@
     </div>
   </div>
 
-  <footer><span class="linklike" id="reset-link">Restart level</span></footer>
+  <footer>
+    <span class="linklike" id="levels-link">Levels</span> &nbsp;·&nbsp;
+    <span class="linklike" id="reset-link">Restart level</span>
+  </footer>
+
+  <!-- Level select: pick any level up to the highest one unlocked. -->
+  <div class="overlay fs" id="levelselect">
+    <h2 style="color:var(--accent)">Select Level</h2>
+    <div class="level-grid" id="level-grid"></div>
+    <button class="btn" id="ls-close">Back</button>
+  </div>
 
   <!-- Embedded level pack: inline fallback so the game runs from file://.
        When served (GitHub Pages / portal iframe) the game fetches the
@@ -268,6 +296,12 @@ const ctx=canvas.getContext("2d");
 
 let levelIndex = 0;
 let level, lines, lives, active=null, animating=false;
+
+// Progression: `unlocked` = highest selectable level index; `starsMap` = best
+// stars earned per level. Persisted so players can replay passed levels.
+let unlocked = parseInt(localStorage.getItem("vm_unlocked")) || 0;
+let starsMap = {};
+try { starsMap = JSON.parse(localStorage.getItem("vm_stars") || "{}"); } catch(e) {}
 
 function clampLevel(i){ if(isNaN(i)||i<0) return 0; return Math.min(i, LEVELS.length-1); }
 
@@ -450,10 +484,49 @@ function starsFor(){
 
 function win(){
   const s=starsFor();
+  // Record best stars and unlock the next level.
+  if(s > (starsMap[levelIndex]||0)){
+    starsMap[levelIndex]=s;
+    localStorage.setItem("vm_stars", JSON.stringify(starsMap));
+  }
+  const nextUnlocked=Math.min(levelIndex+1, LEVELS.length-1);
+  if(nextUnlocked>unlocked){ unlocked=nextUnlocked; localStorage.setItem("vm_unlocked", unlocked); }
+
   document.getElementById("win-stars").textContent="★".repeat(s)+"☆".repeat(3-s);
   document.getElementById("win").classList.add("show");
 }
 function lose(){ document.getElementById("lose").classList.add("show"); }
+
+/* ===================== Level select ===================== */
+
+function buildLevelGrid(){
+  const grid=document.getElementById("level-grid");
+  grid.innerHTML="";
+  for(let i=0;i<LEVELS.length;i++){
+    const locked = i>unlocked;
+    const btn=document.createElement("button");
+    btn.className="lvl-btn"+(locked?" locked":"")+(i===levelIndex?" current":"");
+    const s=starsMap[i]||0;
+    btn.innerHTML = locked
+      ? `🔒`
+      : `<span>${i+1}</span><span class="mini">${s?"★".repeat(s):"&nbsp;"}</span>`;
+    if(!locked) btn.onclick=()=>selectLevel(i);
+    grid.appendChild(btn);
+  }
+}
+function openLevelSelect(){
+  for(const id of ["win","lose","done"]) document.getElementById(id).classList.remove("show");
+  buildLevelGrid();
+  document.getElementById("levelselect").classList.add("show");
+}
+function selectLevel(i){
+  levelIndex=i; localStorage.setItem("vm_level", i);
+  document.getElementById("levelselect").classList.remove("show");
+  buildLevel();
+}
+document.getElementById("levels-link").onclick=openLevelSelect;
+document.getElementById("win-levels").onclick=openLevelSelect;
+document.getElementById("ls-close").onclick=()=>document.getElementById("levelselect").classList.remove("show");
 
 document.getElementById("next-btn").onclick=()=>{
   if(levelIndex < LEVELS.length-1){
@@ -562,6 +635,9 @@ function drawPointer(x,y,dir,color){
   const raw = await loadLevels();
   LEVELS = raw.map(normalizeLevel);
   levelIndex = clampLevel(parseInt(localStorage.getItem("vm_level")) || 0);
+  // The current level is always reachable (covers saves from before this feature).
+  unlocked = Math.min(Math.max(unlocked, levelIndex), LEVELS.length-1);
+  localStorage.setItem("vm_unlocked", unlocked);
   buildLevel();
   requestAnimationFrame(tick);
 })();
