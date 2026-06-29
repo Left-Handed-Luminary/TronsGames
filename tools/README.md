@@ -1,0 +1,81 @@
+# Vector Maze — level tools (M2)
+
+Offline tooling that generates **provably solvable** Vector Maze levels and
+writes them to a JSON pack the game loads. Nothing here ships to players; it is
+build-time tooling. See `../vector-maze-requirements.md` (§8, §9) for the spec.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `engine-core.mjs` | Canonical geometry + collision + DFS solver. **Mirrors the collision math inlined in `vector-maze.html`** so "verified solvable" offline matches the running game. |
+| `generate-levels.mjs` | Reverse-construction generator + independent verifier + difficulty tagging. Emits the levels JSON. |
+| `test-core.mjs` | Parity/sanity tests: reproduces the in-game M1 level solutions. |
+
+## Why levels are always solvable
+
+**Reverse construction.** A line is removable when its slide path off the canvas
+is clear of all *remaining* lines. We build each puzzle in reverse-removal order:
+place line 1, then place line 2 so its path is clear of line 1, then line 3 clear
+of {1,2}, and so on. Removing them in the reverse of placement order is therefore
+valid *by construction* — no search required to guarantee a solution exists.
+
+**Greedy difficulty.** At each step the generator tries several valid candidates
+and keeps the one that *blocks* the most currently-removable lines. Blocking is
+safe (the blocker is removed first in reverse order) and it forces the player to
+discover the order — turning a merely-solvable board into a real puzzle. A quality
+gate then rejects boards where too many lines are free on the first move.
+
+**Independent verification.** Every emitted level is re-checked by a separate DFS
+solver (`solveOrder`) and a rest-overlap check before being written. Any level that
+fails is discarded. The same solver runs in-game on load as a final guard.
+
+## Usage
+
+```bash
+# Default pack (5 easy, 6 medium, 6 hard, 3 super-hard) -> vector-maze-levels.json
+node tools/generate-levels.mjs
+
+# Reproducible custom pack
+node tools/generate-levels.mjs --seed 42 --easy 6 --medium 8 --hard 4 --superhard 2 \
+     --out vector-maze-levels.json
+
+# Keep per-level _meta (line count, free-at-start, construction order) for inspection
+node tools/generate-levels.mjs --meta --out sample.json
+
+# Run the parity/sanity tests
+node tools/test-core.mjs
+
+node tools/generate-levels.mjs --help   # all flags
+```
+
+The same `--seed` always produces the same pack, so packs are reproducible.
+
+## Output schema
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "generator": { "seed": 1, "createdWith": "tools/generate-levels.mjs" },
+  "levels": [
+    {
+      "id": 1,
+      "name": "Level 1",
+      "difficulty": "easy",        // easy | medium | hard | superhard
+      "lives": 3,
+      "grid": { "cols": 8, "rows": 8 },
+      "lines": [
+        { "id": "L1", "points": [[2,3],[2,6],[5,6]], "head": "end", "dir": "R" }
+      ],
+      "solution": ["L3","L1","L2"] // one verified removal order
+    }
+  ]
+}
+```
+
+## Keeping the engine in sync
+
+`engine-core.mjs` is the source of truth for collision constants (`CANVAS`, `PAD`,
+`W`, `CLR`) and the `contactT` / `canRemove` math. The game inlines an identical
+copy. If you change one, change the other (and re-run `test-core.mjs`). M4 will wire
+`vector-maze.html` to consume the generated JSON directly.
