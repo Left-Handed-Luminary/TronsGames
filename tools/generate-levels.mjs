@@ -40,18 +40,53 @@ function mulberry32(seed){
 }
 const ri = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1)); // inclusive
 
+/* ---------- shape masks ----------
+   inside(gx,gy,cols,rows) -> bool. Lines are confined to the shape so the
+   maze reads as a symbol/fruit/emoticon centred on the board; the empty
+   margin around it lets each line's head-ray exit to the canvas edge. */
+function norm(gx,gy,cols,rows,fit){
+  const cx=cols/2, cy=rows/2, R=Math.min(cols,rows)/2*fit;
+  return [(gx-cx)/R, (gy-cy)/R];
+}
+function pip(x,y,v){ // point-in-polygon
+  let inside=false;
+  for(let i=0,j=v.length-1;i<v.length;j=i++){
+    const xi=v[i][0],yi=v[i][1],xj=v[j][0],yj=v[j][1];
+    if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function starVerts(k=5,inner=0.42){ const v=[]; for(let i=0;i<2*k;i++){
+  const a=-Math.PI/2 + i*Math.PI/k, r=i%2?inner:1; v.push([Math.cos(a)*r, Math.sin(a)*r]); } return v; }
+const STAR = starVerts();
+const DIAMOND = [[0,-1.05],[1.05,0],[0,1.05],[-1.05,0]];
+
+const MASKS = {
+  heart:  (gx,gy,c,r)=>{ let [x,y]=norm(gx,gy,c,r,0.80); y=-y+0.25; x*=1.1;
+                         const v=x*x+y*y-1; return v*v*v - x*x*y*y*y <= 0; },
+  star:   (gx,gy,c,r)=> pip(...norm(gx,gy,c,r,0.96), STAR),
+  smiley: (gx,gy,c,r)=>{ const [x,y]=norm(gx,gy,c,r,0.92); if(x*x+y*y>1) return false;
+                         const eye=ex=>{const dx=x-ex,dy=y+0.32; return dx*dx+dy*dy<0.045;};
+                         if(eye(-0.36)||eye(0.36)) return false;
+                         const my=-0.05+0.9*x*x; if(y>0.1 && Math.abs(x)<0.55 && Math.abs(y-my)<0.13) return false;
+                         return true; },
+  apple:  (gx,gy,c,r)=>{ const [x,y]=norm(gx,gy,c,r,0.86);
+                         return x*x+y*y<=1 || (Math.abs(x)<0.10 && y<-0.85 && y>-1.25); }, // circle + stem
+  diamond:(gx,gy,c,r)=> pip(...norm(gx,gy,c,r,0.96), DIAMOND),
+};
+const SHAPE_CYCLE = ["heart","star","smiley","apple","diamond"];
+
 /* ---------- difficulty presets ----------
-   Portrait grids (cols x rows) at reference-screenshot scale. `lines` is
-   [floor, cap]: the generator packs up to `cap` and accepts any board with at
-   least `floor` lines once placement stalls.
-   maxStartFrac = quality gate: at most this fraction of lines may be removable
-   on the first move. maxSeg = cap on a single segment's grid length. */
+   Portrait grids (cols x rows). `lines` is [floor, cap]: the generator packs up
+   to `cap` and accepts any board with at least `floor` lines once placement
+   stalls. Shaped tiers confine lines to a centred shape mask (near-square grids
+   so the shape isn't distorted). maxSeg = cap on a single segment's length. */
 const PRESETS = {
-  easy:       { cols:8,  rows:11, lines:[8,12],    maxBends:1, maxSeg:5, lives:3, maxStartFrac:0.95, candTries:8 },
-  medium:     { cols:11, rows:16, lines:[22,32],   maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.92, candTries:8 },
-  hard:       { cols:15, rows:24, lines:[44,60],   maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.90, candTries:8 },
-  superhard:  { cols:20, rows:32, lines:[64,88],   maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.90, candTries:8 },
-  dense:      { cols:24, rows:40, lines:[92,120],  maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.92, candTries:8 }
+  easy:       { cols:8,  rows:11, lines:[8,12],   maxBends:1, maxSeg:5, lives:3, maxStartFrac:0.95, candTries:8,  shaped:false },
+  medium:     { cols:11, rows:16, lines:[22,32],  maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.92, candTries:8,  shaped:false },
+  hard:       { cols:20, rows:22, lines:[20,200], maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.97, candTries:10, shaped:true },
+  superhard:  { cols:26, rows:28, lines:[30,240], maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.97, candTries:10, shaped:true },
+  dense:      { cols:32, rows:34, lines:[45,300], maxBends:2, maxSeg:6, lives:3, maxStartFrac:0.97, candTries:10, shaped:true }
 };
 
 /* ---------- candidate line generation ---------- */
@@ -69,21 +104,37 @@ function outwardDir(points, head){
 }
 
 // Random orthogonal polyline (alternating axes, no immediate retrace).
-function randomCandidate(rng, cols, rows, maxBends, maxSeg){
-  let x = ri(rng, 0, cols), y = ri(rng, 0, rows);
+// If `mask` is given, every vertex AND every grid point a segment crosses must
+// be inside the mask, so the whole line stays within the shape.
+function randomCandidate(rng, cols, rows, maxBends, maxSeg, mask){
+  let x, y, tries=0;
+  do { x = ri(rng,0,cols); y = ri(rng,0,rows); tries++; }
+  while(mask && !mask(x,y,cols,rows) && tries<40);
+  if(mask && !mask(x,y,cols,rows)) return null;
+
   const pts = [[x,y]];
   const bends = ri(rng, 0, maxBends);
   let lastAxis = null;
   for(let i=0; i<=bends; i++){
     const axis = lastAxis === null ? (rng() < 0.5 ? "h" : "v")
                                    : (lastAxis === "h" ? "v" : "h");
-    // try a few times to find an in-bounds move of length >= 1
     let moved = false;
     for(let tryN=0; tryN<6; tryN++){
       const sign = rng() < 0.5 ? -1 : 1;
-      const maxLen = axis === "h" ? (sign>0 ? cols-x : x) : (sign>0 ? rows-y : y);
+      let maxLen = axis === "h" ? (sign>0 ? cols-x : x) : (sign>0 ? rows-y : y);
+      maxLen = Math.min(maxLen, maxSeg);
+      // Clamp so the segment never leaves the mask.
+      if(mask){
+        let run=0;
+        for(let s=1;s<=maxLen;s++){
+          const nx = axis==="h" ? x+sign*s : x, ny = axis==="v" ? y+sign*s : y;
+          if(!mask(nx,ny,cols,rows)) break;
+          run=s;
+        }
+        maxLen=run;
+      }
       if(maxLen < 1) continue;
-      const len = ri(rng, 1, Math.min(maxLen, maxSeg));
+      const len = ri(rng, 1, maxLen);
       if(axis === "h") x += sign*len; else y += sign*len;
       pts.push([x,y]);
       moved = true;
@@ -115,9 +166,10 @@ function newlyBlocked(placed, cand){
   return n;
 }
 
-function buildLevel(rng, preset, name, difficulty){
+function buildLevel(rng, preset, name, difficulty, shapeName){
   const cols = preset.cols, rows = preset.rows;
   const level = { cols, rows };
+  const mask = shapeName ? MASKS[shapeName] : null;
   const floor = preset.lines[0], cap = preset.lines[1];
   const placed = [];           // placement order; removal order is the reverse
   let stall = 0;
@@ -126,7 +178,7 @@ function buildLevel(rng, preset, name, difficulty){
   while(placed.length < cap && stall < STALL){
     let best = null, bestScore = -1;
     for(let k=0; k<preset.candTries; k++){
-      const cand = randomCandidate(rng, cols, rows, preset.maxBends, preset.maxSeg);
+      const cand = randomCandidate(rng, cols, rows, preset.maxBends, preset.maxSeg, mask);
       if(!cand) continue;
       cand.id = "L" + (placed.length+1);
       const line = makeLine(level, cand);
@@ -163,7 +215,7 @@ function buildLevel(rng, preset, name, difficulty){
   }
 
   const startRemovable = removableAtStart(placed);
-  return {
+  const lvl = {
     difficulty,
     lives: preset.lives,
     grid: { cols, rows },
@@ -176,6 +228,8 @@ function buildLevel(rng, preset, name, difficulty){
       avgBends: +(placed.reduce((s,l)=>s+(l.points.length-2),0)/placed.length).toFixed(2)
     }
   };
+  if(shapeName) lvl.shape = shapeName;
+  return lvl;
 }
 
 /* ---------- pack assembly ---------- */
@@ -190,13 +244,15 @@ function generatePack({ seed, counts, keepMeta }){
     ...Array(counts.dense).fill("dense"),
   ];
   const levels = [];
-  let idNum = 1, guard = 0;
+  let idNum = 1, guard = 0, shapeIdx = 0;
   for(const difficulty of plan){
+    // Shaped tiers cycle through the shape library for variety.
+    const shapeName = PRESETS[difficulty].shaped ? SHAPE_CYCLE[shapeIdx++ % SHAPE_CYCLE.length] : null;
     let lvl = null;
     while(!lvl && guard < 100000){
       guard++;
       lvl = buildLevel(rng, PRESETS[difficulty],
-                       `Level ${idNum}`, difficulty);
+                       `Level ${idNum}`, difficulty, shapeName);
     }
     if(!lvl){ console.error(`Could not build a ${difficulty} level`); continue; }
     lvl.id = idNum;

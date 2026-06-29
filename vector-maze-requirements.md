@@ -56,8 +56,18 @@ Only one line animates at a time; input is locked during animation.
   dimensions follow the grid (`PAD*2 + cols*CELL` × `PAD*2 + rows*CELL`). Boards are
   **portrait** like the screenshots (`cols`/`rows` need not be equal); the canvas is
   scaled to fit the viewport while preserving the grid aspect ratio.
-- Grid sizes scale with difficulty (matched to the reference screenshots): easy `8×11`,
-  medium `11×16`, hard `15×24`, super-hard `20×32`, dense/"Insane" `24×40`.
+- Grid sizes scale with difficulty (matched to the reference screenshots). Easy/medium
+  are rectangular (`8×11`, `11×16`); the harder tiers are **shaped** (see below) on
+  near-square grids (`20×22`, `26×28`, `32×34`).
+
+### Shaped levels
+
+The harder tiers confine all lines to a centred **shape mask** — a heart, star, smiley,
+apple, or diamond — so the maze reads as a symbol/fruit/emoticon (like the reference "$"
+and brain levels). The shape is purely a generation-time constraint: lines (every vertex
+and segment) must stay inside the mask, while the empty margin around the shape lets each
+line's head-ray still exit to the canvas edge. No game/engine changes are needed — shaped
+levels are ordinary levels whose lines happen to form a picture.
 
 ---
 
@@ -315,9 +325,10 @@ Modeled on the screenshots:
 - **Hints:** **deferred** — not in v1. (`solution` is still stored in the JSON for the
   verifier and future hint support.)
 
-- **Board sizes** per difficulty (portrait, matched to the screenshots): easy `8×11`,
-  medium `11×16`, hard `15×24`, super-hard `20×32`, dense `24×40`. Line counts scale to
-  ~12 / ~30 / ~50 / ~75 / ~100+ respectively.
+- **Board sizes** per difficulty: easy `8×11` and medium `11×16` (rectangular); hard
+  `20×22`, super-hard `26×28`, dense `32×34` (shaped). Line counts ~12 / ~30 / ~25-35 /
+  ~40-55 / ~55-65 (shaped tiers hold fewer lines since they fill a shape, not the full
+  rectangle).
 - **Line thickness / clearance**: `W = 12`, `CLR = 4` on a fixed `CELL = 32` px cell.
 
 ---

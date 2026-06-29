@@ -20,6 +20,15 @@ endpoint. Since the body only retraces its own footprint, the only thing that ca
 removal is the **head ray** — the straight ray from the head endpoint to the board edge.
 A line is removable iff that ray is clear of every other line.
 
+## Shaped levels
+
+The harder tiers confine lines to a centred **shape mask** (`heart`, `star`, `smiley`,
+`apple`, `diamond`) so the maze reads as a symbol/fruit/emoticon. The mask only constrains
+candidate generation — every vertex and segment must stay inside the shape — while the
+empty margin lets head-rays exit. Masks live in `MASKS` (math/polygon predicates over
+normalized grid coords); shaped tiers are flagged `shaped:true` in `PRESETS` and cycle
+through the shapes. Each emitted shaped level carries a `"shape"` field.
+
 ## Why levels are always solvable
 
 **Reverse construction.** A line is removable when its head ray is clear of all *remaining*
