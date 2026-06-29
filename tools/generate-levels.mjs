@@ -42,12 +42,14 @@ const ri = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1)); // inclusive
 
 /* ---------- difficulty presets ----------
    maxStartFrac = quality gate: at most this fraction of lines may be
-   removable on the first move (lower = more forced ordering = harder). */
+   removable on the first move (lower = more forced ordering = harder).
+   maxSeg = cap on a single segment's grid length (smaller packs denser). */
 const PRESETS = {
-  easy:       { grid:8,  lines:[4,6],   maxBends:1, lives:3, maxStartFrac:0.80, candTries:30 },
-  medium:     { grid:9,  lines:[7,9],   maxBends:2, lives:3, maxStartFrac:0.55, candTries:40 },
-  hard:       { grid:10, lines:[10,13], maxBends:3, lives:3, maxStartFrac:0.45, candTries:55 },
-  superhard:  { grid:12, lines:[14,18], maxBends:3, lives:3, maxStartFrac:0.40, candTries:70 }
+  easy:       { grid:8,  lines:[4,6],   maxBends:1, maxSeg:6,  lives:3, maxStartFrac:0.80, candTries:30 },
+  medium:     { grid:10, lines:[7,10],  maxBends:2, maxSeg:7,  lives:3, maxStartFrac:0.55, candTries:40 },
+  hard:       { grid:12, lines:[12,16], maxBends:3, maxSeg:8,  lives:3, maxStartFrac:0.45, candTries:55 },
+  superhard:  { grid:16, lines:[22,30], maxBends:3, maxSeg:9,  lives:3, maxStartFrac:0.45, candTries:45 },
+  dense:      { grid:20, lines:[38,52], maxBends:4, maxSeg:10, lives:3, maxStartFrac:0.55, candTries:36 }
 };
 
 /* ---------- candidate line generation ---------- */
@@ -65,7 +67,7 @@ function outwardDir(points, head){
 }
 
 // Random orthogonal polyline (alternating axes, no immediate retrace).
-function randomCandidate(rng, cols, rows, maxBends){
+function randomCandidate(rng, cols, rows, maxBends, maxSeg){
   let x = ri(rng, 0, cols), y = ri(rng, 0, rows);
   const pts = [[x,y]];
   const bends = ri(rng, 0, maxBends);
@@ -79,7 +81,7 @@ function randomCandidate(rng, cols, rows, maxBends){
       const sign = rng() < 0.5 ? -1 : 1;
       const maxLen = axis === "h" ? (sign>0 ? cols-x : x) : (sign>0 ? rows-y : y);
       if(maxLen < 1) continue;
-      const len = ri(rng, 1, Math.min(maxLen, axis === "h" ? cols : rows));
+      const len = ri(rng, 1, Math.min(maxLen, maxSeg));
       if(axis === "h") x += sign*len; else y += sign*len;
       pts.push([x,y]);
       moved = true;
@@ -123,7 +125,7 @@ function buildLevel(rng, preset, name, difficulty){
     attempts++;
     let best = null, bestScore = -1;
     for(let k=0; k<preset.candTries; k++){
-      const cand = randomCandidate(rng, cols, rows, preset.maxBends);
+      const cand = randomCandidate(rng, cols, rows, preset.maxBends, preset.maxSeg);
       if(!cand) continue;
       cand.id = "L" + (placed.length+1);
       const line = makeLine(level, cand);
@@ -184,6 +186,7 @@ function generatePack({ seed, counts, keepMeta }){
     ...Array(counts.medium).fill("medium"),
     ...Array(counts.hard).fill("hard"),
     ...Array(counts.superhard).fill("superhard"),
+    ...Array(counts.dense).fill("dense"),
   ];
   const levels = [];
   let idNum = 1, guard = 0;
@@ -207,8 +210,9 @@ function generatePack({ seed, counts, keepMeta }){
 /* ---------- CLI ---------- */
 
 function parseArgs(argv){
+  // Default counts = the curated 20-level curve (easy→dense showpieces).
   const a = { out:"vector-maze-levels.json", seed:1,
-              easy:5, medium:6, hard:6, superhard:3, meta:false, help:false };
+              easy:4, medium:5, hard:5, superhard:4, dense:2, meta:false, help:false };
   for(let i=2;i<argv.length;i++){
     const k=argv[i];
     if(k==="--help"||k==="-h"){ a.help=true; }
@@ -219,6 +223,7 @@ function parseArgs(argv){
     else if(k==="--medium"){ a.medium=parseInt(argv[++i],10); }
     else if(k==="--hard"){ a.hard=parseInt(argv[++i],10); }
     else if(k==="--superhard"){ a.superhard=parseInt(argv[++i],10); }
+    else if(k==="--dense"){ a.dense=parseInt(argv[++i],10); }
     else { console.error("Unknown arg:", k); a.help=true; }
   }
   return a;
@@ -231,10 +236,11 @@ const HELP = `Vector Maze level generator
 Options:
   --out <file>        Output JSON path (default vector-maze-levels.json)
   --seed <int>        RNG seed for reproducible packs (default 1)
-  --easy <n>          Number of easy levels (default 5)
-  --medium <n>        Number of medium levels (default 6)
-  --hard <n>          Number of hard levels (default 6)
-  --superhard <n>     Number of super-hard levels (default 3)
+  --easy <n>          Number of easy levels (default 4)
+  --medium <n>        Number of medium levels (default 5)
+  --hard <n>          Number of hard levels (default 5)
+  --superhard <n>     Number of super-hard levels (default 4)
+  --dense <n>         Number of dense showpiece levels (default 2)
   --meta              Keep per-level _meta (counts, construction order)
   -h, --help          Show this help
 
@@ -246,7 +252,7 @@ function main(){
   if(a.help){ console.log(HELP); return; }
   const pack = generatePack({
     seed: a.seed,
-    counts: { easy:a.easy, medium:a.medium, hard:a.hard, superhard:a.superhard },
+    counts: { easy:a.easy, medium:a.medium, hard:a.hard, superhard:a.superhard, dense:a.dense },
     keepMeta: a.meta
   });
 
