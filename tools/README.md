@@ -10,21 +10,30 @@ build-time tooling. See `../vector-maze-requirements.md` (§8, §9) for the spec
 |---|---|
 | `engine-core.mjs` | Canonical geometry + collision + DFS solver. **Mirrors the collision math inlined in `vector-maze.html`** so "verified solvable" offline matches the running game. |
 | `generate-levels.mjs` | Reverse-construction generator + independent verifier + difficulty tagging. Emits the levels JSON. |
-| `test-core.mjs` | Parity/sanity tests: reproduces the in-game M1 level solutions. |
+| `test-core.mjs` | Sanity tests for the snake head-ray collision model. |
+
+## Movement model (snake)
+
+A line peels off **head-first like Snake**: the head moves in its pointer direction and
+the body follows the line's own path, then off a straight ray continuing past the head
+endpoint. Since the body only retraces its own footprint, the only thing that can block
+removal is the **head ray** — the straight ray from the head endpoint to the board edge.
+A line is removable iff that ray is clear of every other line.
 
 ## Why levels are always solvable
 
-**Reverse construction.** A line is removable when its slide path off the canvas
-is clear of all *remaining* lines. We build each puzzle in reverse-removal order:
-place line 1, then place line 2 so its path is clear of line 1, then line 3 clear
-of {1,2}, and so on. Removing them in the reverse of placement order is therefore
-valid *by construction* — no search required to guarantee a solution exists.
+**Reverse construction.** A line is removable when its head ray is clear of all *remaining*
+lines. We build each puzzle in reverse-removal order: place line 1, then place line 2 so
+its head ray is clear of line 1, then line 3 clear of {1,2}, and so on. Removing them in
+the reverse of placement order is therefore valid *by construction* — no search required
+to guarantee a solution exists.
 
 **Greedy difficulty.** At each step the generator tries several valid candidates
-and keeps the one that *blocks* the most currently-removable lines. Blocking is
-safe (the blocker is removed first in reverse order) and it forces the player to
-discover the order — turning a merely-solvable board into a real puzzle. A quality
-gate then rejects boards where too many lines are free on the first move.
+and keeps the one that *blocks* the most currently-removable lines (crosses their
+head rays). Blocking is safe (the blocker is removed first in reverse order) and it
+forces the player to discover the order — turning a merely-solvable board into a real
+puzzle. A quality gate then rejects boards where too many lines are free on the first
+move.
 
 **Independent verification.** Every emitted level is re-checked by a separate DFS
 solver (`solveOrder`) and a rest-overlap check before being written. Any level that
@@ -33,7 +42,7 @@ fails is discarded. The same solver runs in-game on load as a final guard.
 ## Usage
 
 ```bash
-# Default pack (5 easy, 6 medium, 6 hard, 3 super-hard) -> vector-maze-levels.json
+# Default curated 20-level pack (4 easy, 5 medium, 5 hard, 4 super-hard, 2 dense)
 node tools/generate-levels.mjs
 
 # Reproducible custom pack
