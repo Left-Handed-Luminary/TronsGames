@@ -81,31 +81,44 @@ collision clearance (see §5).
 
 ## 5. Movement & Collision Rules
 
-When a line is tapped, treat the entire polyline as one **rigid shape** that translates
-in `dir`.
+When a line is tapped it peels off **head-first, like the game Snake**: the head moves
+forward in `dir` while the rest of the body **follows the line's own path**. The body is
+not translated rigidly — it slithers along its existing route, then continues off the
+board along a straight ray extending from the head endpoint in `dir`.
 
-- **Sweep:** translate the shape by `t · dir` for increasing `t`, from `t = 0` until the
-  shape is fully outside the canvas bounds (`t = T_exit`). Any bounded shape translated
-  in a single cardinal direction always fully exits eventually.
-- **Collision:** at any `t ∈ (0, T_exit]`, if the translated shape **touches or overlaps**
-  any other *remaining* line, that is a collision. "Touch" includes the line thickness:
-  two centerlines closer than `(thickness + small clearance)` count as contact.
-- **Valid line:** no collision for the entire sweep → the line exits and is **removed**.
-- **Invalid line:** a collision occurs at some smallest `t = t_hit`:
-  - Animate the line forward to `t_hit` (first contact),
+Parametrize the line by arc length from tail (the non-pointer end) to head, length `L`.
+As the line peels, a **lead distance `d`** grows from `0`; every point shifts forward `d`
+along the *extended* path (original path, then the forward ray past the head endpoint).
+At lead `d` the line occupies arc range `[d, d + L]` of the extended path.
+
+**Key consequence for collision:** because the body only ever retraces its own footprint
+(which never overlaps another line), the only thing that can block removal is the
+**head's ray** — a straight ray from the head endpoint in `dir` out to the board edge.
+
+- **Removable (valid):** the head's ray is clear of every other remaining line all the way
+  to the board edge → the line snakes off and is **removed**.
+- **Blocked (invalid):** the ray contacts another line at the smallest forward distance
+  `h` before reaching the edge:
+  - Animate the head forward to `h` (first contact, body following its path),
   - Flash it **red**,
-  - Animate it back to `t = 0` (original position),
+  - Animate it back to lead `0` (original position),
   - Decrement lives by 1.
+- "Contact" includes line thickness: the head's box (half-extent `thickness/2 + clearance`)
+  touching another line's segment (half-extent `thickness/2`) counts.
 
-Collision math (centerline form, sufficient for thin lines + clearance):
-- The moving line's segments sweep regions as `t` grows; perpendicular segments sweep
-  rectangles, parallel segments sweep along their length.
-- Equivalent practical test: for each moving segment vs. each static segment, compute the
-  smallest `t ≥ 0` at which they come within the clearance distance, considering only the
-  translation along `dir`. The minimum such `t` across all pairs is `t_hit` (or none).
-- A coarse-but-safe alternative for v1: rasterize lines onto the grid/pixel buffer and
-  step the sweep in small increments, checking overlap. Precise geometry is preferred for
-  smoothness; rasterization is an acceptable fallback.
+Collision math (axis-aligned, must match between game and generator):
+- Head point `E` = the head endpoint; `reach` = distance from `E` to the board edge along
+  `dir`.
+- For each other line's segment, compute the forward distance at which `E`'s inflated box
+  first overlaps it along `dir` (same per-direction box test as a 1-D sweep). The minimum
+  across all segments is `h` (or ∞ if none).
+- Removable ⇔ `h ≥ reach`. The body retraces a clear footprint, so no further checks are
+  needed.
+
+> Note: this replaced an earlier rigid-translation model. The head-ray rule is both more
+> faithful to the intended "Snake" feel and simpler/cheaper to evaluate. Removability is
+> **monotonic** — removing a line only ever *frees* the rays of others — so the solver is
+> effectively greedy (no exponential backtracking) even on dense boards.
 
 ---
 
@@ -181,22 +194,28 @@ Two independent mechanisms, used together:
 
 ### 9.1 Reverse construction (generator) — solvable *by construction*
 
-Removal happens one line at a time. A line is removable now iff its sweep is clear of all
-**currently remaining** lines. Build the puzzle so a valid removal order is guaranteed:
+Removal happens one line at a time. A line is removable now iff its **head ray** is clear
+of all **currently remaining** lines (see §5). Build the puzzle so a valid removal order is
+guaranteed:
 
 1. Start with an empty board. `placed = []`.
 2. To add the next line (which will be removed **before** every line already placed):
    a. Generate a candidate orthogonal polyline on the grid (random walk of a few bends),
       choose a head endpoint and set `dir` from its final segment.
-   b. Compute the candidate's sweep in `dir`.
+   b. Compute the candidate's head ray in `dir`.
    c. Accept it only if (i) at rest it does not overlap any line in `placed`, and
-      (ii) its sweep is **clear of every line in `placed`**.
+      (ii) its head ray is **clear of every line in `placed`**.
    d. On accept, append to `placed`; otherwise retry with a new candidate.
 3. Stop at the target line count for the difficulty (or after an attempt budget).
 4. The removal order `reverse(placed)` is valid **by construction**: when the k-th line
    (counting from the end) is removed, exactly the lines placed before it remain, and its
-   sweep was checked clear of precisely those.
+   head ray was checked clear of precisely those.
 5. Renumber/shuffle the `id`s so placement order is not a trivial giveaway to the player.
+
+To make levels genuine puzzles (not all-removable-at-once), the generator greedily prefers
+each new candidate that **blocks** the most currently-removable lines — i.e. crosses their
+head rays — building dependency chains. A quality gate caps how many lines may be removable
+on the first move.
 
 This guarantees at least one solution exists. Difficulty emerges naturally (many lines
 are blocked until others move).
@@ -207,9 +226,10 @@ Regardless of how a level was produced, a separate solver double-checks it (defe
 depth, and it can be run in the game at load):
 
 - Search states where a state = set of remaining lines.
-- A move = remove any line whose sweep is clear of the other remaining lines.
-- DFS/BFS with memoization (greedy-first, backtrack on dead ends). If a path empties the
-  board, the level is solvable; record that path as `solution`.
+- A move = remove any line whose head ray is clear of the other remaining lines.
+- DFS with memoization. Because removability is monotonic (removing a line never blocks
+  another), any greedy order works, so this empties the board fast. If it does, the level
+  is solvable; record that path as `solution`.
 - If a level fails verification, it is **rejected** and never shipped.
 
 ### 9.3 Difficulty metrics (for tagging levels)

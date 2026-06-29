@@ -56,23 +56,37 @@ export function lineBBox(line){
   return {minx,miny,maxx,maxy};
 }
 
-// Distance the line must travel in dir to leave the canvas entirely.
-export function exitT(line, dir){
-  const b=lineBBox(line);
-  if(dir==="R") return CANVAS - b.minx + 6;
-  if(dir==="L") return b.maxx + 6;
-  if(dir==="D") return CANVAS - b.miny + 6;
-  return b.maxy + 6; // U
+// SNAKE MOVEMENT MODEL
+// --------------------
+// A line peels off head-first: the head travels forward in its pointer
+// direction while the body follows the line's own path. The body only ever
+// retraces its own footprint (which never overlaps another line), so the only
+// thing that can block removal is the HEAD'S RAY — a straight ray from the head
+// endpoint in the pointer direction out to the board edge. A line is removable
+// iff that ray is clear of every other line.
+
+// Head endpoint of a line (pixel coords).
+export function headPoint(line){
+  return line.head === "start" ? line.pxBase[0] : line.pxBase[line.pxBase.length-1];
 }
 
-// Smallest forward travel t at which `mover` (sliding `dir`) contacts `other`.
-// Infinity if no contact. Inflated axis-aligned boxes (must match the game).
-export function contactT(mover, other, dir){
+// Distance from the head endpoint to the board edge along the pointer direction.
+export function rayLenToEdge(E, dir){
+  if(dir==="R") return CANVAS - E.x;
+  if(dir==="L") return E.x;
+  if(dir==="D") return CANVAS - E.y;
+  return E.y; // U
+}
+
+// Smallest forward distance from head point E (moving in dir) at which the
+// head's inflated box contacts any segment of `others`. Infinity if clear.
+// Must match the in-game copy exactly.
+export function rayHitDist(E, dir, others){
   const pm=W/2+CLR, ps=W/2;
+  const m={ minx:E.x-pm, maxx:E.x+pm, miny:E.y-pm, maxy:E.y+pm };
   let best=Infinity;
-  for(const ms of segsOf(mover)){
-    const m=segAABB(ms,pm);
-    for(const ss of segsOf(other)){
+  for(const o of others){
+    for(const ss of segsOf(o)){
       const s=segAABB(ss,ps);
       let t;
       if(dir==="R"){
@@ -98,14 +112,12 @@ export function contactT(mover, other, dir){
   return best;
 }
 
-// Can `line` be removed given the other present lines?
+// Can `line` be removed given the other present lines? (snake: head-ray clear)
 export function canRemove(line, others){
-  const exit=exitT(line, line.dir);
-  for(const o of others){
-    if(o===line) continue;
-    if(contactT(line, o, line.dir) < exit) return false;
-  }
-  return true;
+  const E=headPoint(line);
+  const reach=rayLenToEdge(E, line.dir);
+  const rest=others.filter(o=>o!==line);
+  return rayHitDist(E, line.dir, rest) >= reach;
 }
 
 // Do two lines overlap at rest (malformed board)?
