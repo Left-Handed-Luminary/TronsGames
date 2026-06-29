@@ -392,7 +392,10 @@ function tick(){
     } else { // bounce back along its own path after a blocked move
       a.lead -= SPEED*RETURN_MULT;
       if(a.lead<=0){
-        a.lead=0; active.flash=0; active.status="idle"; active.anim=null;
+        // Stays red so the player knows this line is currently blocked. The
+        // mark is cleared on any successful removal (the board changed, so a
+        // blocked line may now be free) — see afterClear().
+        a.lead=0; active.flash=0; active.failed=true; active.status="idle"; active.anim=null;
         active=null; animating=false;
         afterBlock();
       }
@@ -403,6 +406,9 @@ function tick(){
 }
 
 function afterClear(){
+  // The board changed: lines that were blocked may now be free, so clear the
+  // red "blocked" marks and let the player re-evaluate.
+  for(const l of lines) l.failed=false;
   updateUI();
   if(present().length===0) win();
 }
@@ -478,7 +484,7 @@ function draw(){
   drawGrid();
   for(const line of lines){
     if(line.status==="cleared") continue;
-    const color = line.flash ? getCss("--danger") : getCss("--line");
+    const color = (line.flash || line.failed) ? getCss("--danger") : getCss("--line");
 
     // Body points: animating lines slither along their own path + forward ray;
     // idle lines draw at rest. Head = last point; pointer continues in `dir`.
