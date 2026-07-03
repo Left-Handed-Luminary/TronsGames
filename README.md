@@ -100,8 +100,6 @@ The repository reflects an experiment in prompt-driven software creation, rapid 
 
 Planned or possible enhancements:
 
-- Add screenshots or GIF previews for each game
-- Add a playable gallery landing page
 - Improve mobile controls
 - Add sound effects and music
 - Add high-score persistence with `localStorage`
