@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>2048 To Zero</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      touch-action: manipulation;
+      background:
+        radial-gradient(circle at top, rgba(251, 191, 36, 0.16), transparent 30%),
+        radial-gradient(circle at 85% 20%, rgba(45, 212, 191, 0.12), transparent 25%),
+        #07111f;
+    }
+
+    .panel {
+      background: rgba(15, 23, 42, 0.78);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 20px 45px rgba(2, 6, 23, 0.34);
+      backdrop-filter: blur(16px);
+    }
+
+    .board-shell {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 24px 44px rgba(2, 6, 23, 0.45);
+    }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      gap: 0.55rem;
+    }
+
+    .tile {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 1.1rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 12px 22px rgba(15, 23, 42, 0.28);
+    }
+
+    .tile.selected {
+      transform: scale(1.05);
+      box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.95), 0 16px 28px rgba(15, 23, 42, 0.35);
+    }
+
+    .tile.hint {
+      animation: hintPulse 1.4s ease-in-out infinite;
+    }
+
+    .dir-btn {
+      position: absolute;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(250, 204, 21, 0.45);
+      background: rgba(15, 23, 42, 0.95);
+      color: #fde68a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+      font-weight: 800;
+      box-shadow: 0 12px 24px rgba(2, 6, 23, 0.4);
+      transform: translate(-50%, -50%);
+      z-index: 30;
+    }
+
+    .dir-btn:active {
+      transform: translate(-50%, -50%) scale(0.96);
+    }
+
+    .mode-btn.active {
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 12px 22px rgba(249, 115, 22, 0.35);
+    }
+
+    @keyframes hintPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+  <div class="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+    <header class="mb-5 text-center sm:mb-7">
+      <p class="text-xs font-bold uppercase tracking-[0.35em] text-amber-300/80">Reverse Puzzle</p>
+      <h1 class="mt-2 text-4xl font-black tracking-tight text-white sm:text-5xl">2048 To Zero</h1>
+      <p class="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+        Split the board downward from giant powers of two to a final pair of 2s. Tap a tile, then swipe or choose a direction to send one half into an empty neighbor while the score counts down to zero.
+      </p>
+    </header>
+
+    <main class="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <section class="panel rounded-3xl p-4 sm:p-5">
+        <div class="mb-4 flex flex-col gap-3 rounded-2xl bg-slate-950/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Mode</p>
+            <div class="mt-2 flex gap-2">
+              <button id="pureModeBtn" class="mode-btn active rounded-full border border-slate-700 px-4 py-2 text-sm font-bold text-slate-200 transition">Pure Mode</button>
+              <button id="maxModeBtn" class="mode-btn rounded-full border border-slate-700 px-4 py-2 text-sm font-bold text-slate-200 transition">Max Mode</button>
+            </div>
+          </div>
+          <div id="messageBar" class="rounded-2xl border border-teal-400/20 bg-teal-400/10 px-4 py-3 text-sm text-teal-100">
+            Start with the 2048 tile and carve the score all the way down to zero.
+          </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-2xl bg-slate-950/35 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Score</p>
+            <p id="scoreValue" class="mt-2 text-3xl font-black text-amber-300">20,480</p>
+          </div>
+          <div class="rounded-2xl bg-slate-950/35 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Moves</p>
+            <p id="movesValue" class="mt-2 text-3xl font-black text-sky-300">0</p>
+          </div>
+          <div class="rounded-2xl bg-slate-950/35 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Live Tiles</p>
+            <p id="tilesValue" class="mt-2 text-3xl font-black text-violet-300">1</p>
+          </div>
+          <div class="rounded-2xl bg-slate-950/35 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Banked 2s</p>
+            <p id="bankValue" class="mt-2 text-3xl font-black text-emerald-300">0</p>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-3">
+          <button id="undoBtn" class="rounded-full bg-slate-200 px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">Undo Reverse</button>
+          <button id="hintBtn" class="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-amber-300">Hint</button>
+          <button id="resetBtn" class="rounded-full border border-slate-600 px-4 py-2 text-sm font-bold text-slate-200 transition hover:border-slate-400 hover:text-white">Reset Board</button>
+        </div>
+
+        <div class="mt-5">
+          <div class="board-shell rounded-[2rem] p-3 sm:p-4">
+            <div id="board" class="board-grid relative aspect-square touch-pan-x touch-pan-y rounded-[1.4rem] bg-slate-900/70 p-2 sm:p-3">
+              <div id="boardBackground" class="board-grid absolute inset-0 p-2 sm:p-3"></div>
+              <div id="tilesLayer" class="board-grid absolute inset-0 p-2 sm:p-3"></div>
+              <div id="overlayLayer" class="absolute inset-0"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel rounded-3xl p-5">
+        <div class="rounded-2xl bg-slate-950/35 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Goal</p>
+          <p class="mt-3 text-lg font-bold text-white">Reach exactly 0 score and leave only two 2-tiles on the board.</p>
+          <p class="mt-3 text-sm leading-6 text-slate-300">
+            Extra 2-tiles are automatically banked away so you can keep carving deeper chains without clogging the grid.
+          </p>
+        </div>
+
+        <div class="mt-4 rounded-2xl bg-slate-950/35 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Controls</p>
+          <ul class="mt-3 space-y-3 text-sm leading-6 text-slate-300">
+            <li><span class="font-bold text-white">Tap a tile</span> to open the split compass.</li>
+            <li><span class="font-bold text-white">Swipe</span> after selecting a tile to split in that direction.</li>
+            <li><span class="font-bold text-white">Undo Reverse</span> restores the previous board state.</li>
+            <li><span class="font-bold text-white">Hint</span> highlights a safe depth-first split.</li>
+          </ul>
+        </div>
+
+        <div class="mt-4 rounded-2xl bg-slate-950/35 p-4 text-sm leading-6 text-slate-300">
+          <p class="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">Mode Notes</p>
+          <p class="mt-3"><span class="font-bold text-white">Pure Mode</span> starts from one classic 2048 root worth 20,480 reverse points.</p>
+          <p class="mt-2"><span class="font-bold text-white">Max Mode</span> opens with a chaotic bonus layout and a massive 82,884 score.</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="victoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/75 px-4">
+    <div class="panel w-full max-w-md rounded-3xl p-6 text-center sm:p-8">
+      <p class="text-sm font-bold uppercase tracking-[0.35em] text-emerald-300">Victory</p>
+      <h2 class="mt-3 text-4xl font-black text-white">Zero Achieved</h2>
+      <p class="mt-4 text-sm leading-6 text-slate-300">
+        You drained the reverse score to zero and left the board with the exact final pair of 2-tiles.
+      </p>
+      <div class="mt-6 grid grid-cols-2 gap-3 text-left">
+        <div class="rounded-2xl bg-slate-950/35 p-4">
+          <p class="text-xs uppercase tracking-[0.28em] text-slate-400">Moves</p>
+          <p id="victoryMoves" class="mt-2 text-2xl font-black text-sky-300">0</p>
+        </div>
+        <div class="rounded-2xl bg-slate-950/35 p-4">
+          <p class="text-xs uppercase tracking-[0.28em] text-slate-400">Mode</p>
+          <p id="victoryMode" class="mt-2 text-2xl font-black text-amber-300">Pure</p>
+        </div>
+      </div>
+      <button id="playAgainBtn" class="mt-6 rounded-full bg-emerald-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-300">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+    const BOARD_SIZE = 5;
+    const MODES = {
+      pure: {
+        label: 'Pure',
+        score: 20480,
+        tiles: [{ id: 1, x: 2, y: 2, value: 2048 }]
+      },
+      max: {
+        label: 'Max',
+        score: 82884,
+        tiles: [
+          { id: 1, x: 0, y: 0, value: 2048 },
+          { id: 2, x: 2, y: 0, value: 2048 },
+          { id: 3, x: 4, y: 0, value: 2048 },
+          { id: 4, x: 0, y: 2, value: 2048 },
+          { id: 5, x: 4, y: 2, value: 64 },
+          { id: 6, x: 0, y: 4, value: 64 },
+          { id: 7, x: 2, y: 4, value: 64 },
+          { id: 8, x: 4, y: 4, value: 4 }
+        ]
+      }
+    };
+
+    const DIRS = {
+      up: { dx: 0, dy: -1, icon: '↑' },
+      right: { dx: 1, dy: 0, icon: '→' },
+      down: { dx: 0, dy: 1, icon: '↓' },
+      left: { dx: -1, dy: 0, icon: '←' }
+    };
+
+    const boardEl = document.getElementById('board');
+    const boardBackgroundEl = document.getElementById('boardBackground');
+    const tilesLayerEl = document.getElementById('tilesLayer');
+    const overlayLayerEl = document.getElementById('overlayLayer');
+    const messageBarEl = document.getElementById('messageBar');
+    const scoreValueEl = document.getElementById('scoreValue');
+    const movesValueEl = document.getElementById('movesValue');
+    const tilesValueEl = document.getElementById('tilesValue');
+    const bankValueEl = document.getElementById('bankValue');
+    const undoBtn = document.getElementById('undoBtn');
+    const hintBtn = document.getElementById('hintBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const pureModeBtn = document.getElementById('pureModeBtn');
+    const maxModeBtn = document.getElementById('maxModeBtn');
+    const victoryModalEl = document.getElementById('victoryModal');
+    const victoryMovesEl = document.getElementById('victoryMoves');
+    const victoryModeEl = document.getElementById('victoryMode');
+    const playAgainBtn = document.getElementById('playAgainBtn');
+
+    let state = {};
+    let selectedTileId = null;
+    let history = [];
+    let hint = null;
+    let touchStart = null;
+    let nextTileId = 1;
+
+    function tileColor(value) {
+      const palette = {
+        2: ['#d1fae5', '#064e3b', '#34d399'],
+        4: ['#bae6fd', '#082f49', '#38bdf8'],
+        8: ['#c4b5fd', '#2e1065', '#8b5cf6'],
+        16: ['#fbcfe8', '#500724', '#ec4899'],
+        32: ['#fecdd3', '#4c0519', '#f43f5e'],
+        64: ['#fde68a', '#451a03', '#f59e0b'],
+        128: ['#fdba74', '#431407', '#f97316'],
+        256: ['#fca5a5', '#450a0a', '#ef4444'],
+        512: ['#a5f3fc', '#083344', '#06b6d4'],
+        1024: ['#bfdbfe', '#172554', '#3b82f6'],
+        2048: ['#e9d5ff', '#3b0764', '#a855f7']
+      };
+      if (palette[value]) return palette[value];
+      const fallback = value > 2048
+        ? ['#f5d0fe', '#581c87', '#d946ef']
+        : ['#e2e8f0', '#0f172a', '#94a3b8'];
+      return fallback;
+    }
+
+    function cloneTiles(tiles) {
+      return tiles.map((tile) => ({ ...tile }));
+    }
+
+    function setMessage(text, tone = 'teal') {
+      const tones = {
+        teal: 'rounded-2xl border border-teal-400/20 bg-teal-400/10 px-4 py-3 text-sm text-teal-100',
+        amber: 'rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100',
+        rose: 'rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100',
+        emerald: 'rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100'
+      };
+      messageBarEl.className = tones[tone] || tones.teal;
+      messageBarEl.textContent = text;
+    }
+
+    function createBoardBackground() {
+      boardBackgroundEl.innerHTML = '';
+      for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i += 1) {
+        const cell = document.createElement('div');
+        cell.className = 'rounded-2xl border border-white/5 bg-white/5';
+        boardBackgroundEl.appendChild(cell);
+      }
+    }
+
+    function createInitialState(modeKey) {
+      const mode = MODES[modeKey];
+      nextTileId = Math.max(...mode.tiles.map((tile) => tile.id), 0);
+      return {
+        modeKey,
+        score: mode.score,
+        moves: 0,
+        bankedTwos: 0,
+        tiles: cloneTiles(mode.tiles)
+      };
+    }
+
+    function getTileById(id) {
+      return state.tiles.find((tile) => tile.id === id) || null;
+    }
+
+    function occupied(x, y, ignoreId = null) {
+      return state.tiles.some((tile) => tile.id !== ignoreId && tile.x === x && tile.y === y);
+    }
+
+    function inBounds(x, y) {
+      return x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE;
+    }
+
+    function getValidDirections(tile) {
+      if (!tile || tile.value <= 2) return [];
+      return Object.entries(DIRS)
+        .filter(([, dir]) => {
+          const nx = tile.x + dir.dx;
+          const ny = tile.y + dir.dy;
+          return inBounds(nx, ny) && !occupied(nx, ny, tile.id);
+        })
+        .map(([key]) => key);
+    }
+
+    function bankExtraTwos() {
+      const twos = state.tiles.filter((tile) => tile.value === 2)
+        .sort((a, b) => a.id - b.id);
+      while (twos.length > 2) {
+        const retired = twos.shift();
+        state.tiles = state.tiles.filter((tile) => tile.id !== retired.id);
+        state.bankedTwos += 1;
+      }
+    }
+
+    function pushHistory() {
+      history.push({
+        state: {
+          modeKey: state.modeKey,
+          score: state.score,
+          moves: state.moves,
+          bankedTwos: state.bankedTwos,
+          tiles: cloneTiles(state.tiles)
+        },
+        nextTileId,
+        selectedTileId,
+        hint: hint ? { ...hint } : null
+      });
+      undoBtn.disabled = history.length === 0;
+    }
+
+    function render() {
+      scoreValueEl.textContent = state.score.toLocaleString();
+      movesValueEl.textContent = state.moves.toString();
+      tilesValueEl.textContent = state.tiles.length.toString();
+      bankValueEl.textContent = state.bankedTwos.toString();
+      undoBtn.disabled = history.length === 0;
+
+      pureModeBtn.classList.toggle('active', state.modeKey === 'pure');
+      maxModeBtn.classList.toggle('active', state.modeKey === 'max');
+
+      tilesLayerEl.innerHTML = '';
+      const tiles = [...state.tiles].sort((a, b) => a.value - b.value || a.id - b.id);
+      for (const tile of tiles) {
+        const [bg, fg, ring] = tileColor(tile.value);
+        const tileEl = document.createElement('button');
+        tileEl.type = 'button';
+        tileEl.className = 'tile text-lg sm:text-xl';
+        if (tile.id === selectedTileId) tileEl.classList.add('selected');
+        if (hint && hint.tileId === tile.id) tileEl.classList.add('hint');
+        tileEl.style.gridColumn = String(tile.x + 1);
+        tileEl.style.gridRow = String(tile.y + 1);
+        tileEl.style.background = `linear-gradient(135deg, ${bg}, ${ring})`;
+        tileEl.style.color = fg;
+        tileEl.style.fontSize = tile.value >= 1024 ? '1.15rem' : tile.value >= 128 ? '1.35rem' : '1.55rem';
+        tileEl.innerHTML = `<span>${tile.value}</span>`;
+        tileEl.setAttribute('aria-label', `Tile ${tile.value}`);
+        tileEl.addEventListener('click', () => onTilePress(tile.id));
+        tilesLayerEl.appendChild(tileEl);
+      }
+
+      renderOverlay();
+      checkVictory();
+    }
+
+    function renderOverlay() {
+      overlayLayerEl.innerHTML = '';
+      const tile = getTileById(selectedTileId);
+      if (!tile) return;
+      const directions = getValidDirections(tile);
+      if (!directions.length) return;
+
+      const rect = boardEl.getBoundingClientRect();
+      const cellSize = rect.width / BOARD_SIZE;
+      const gap = cellSize * 0.09;
+      const tileLeft = tile.x * cellSize + gap + cellSize / 2;
+      const tileTop = tile.y * cellSize + gap + cellSize / 2;
+      const offset = cellSize * 0.56;
+
+      for (const key of directions) {
+        const dir = DIRS[key];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dir-btn';
+        btn.textContent = dir.icon;
+        btn.style.left = `${tileLeft + dir.dx * offset}px`;
+        btn.style.top = `${tileTop + dir.dy * offset}px`;
+        btn.setAttribute('aria-label', `Split ${key}`);
+        btn.addEventListener('click', () => performSplit(tile.id, key));
+        overlayLayerEl.appendChild(btn);
+      }
+    }
+
+    function onTilePress(tileId) {
+      const tile = getTileById(tileId);
+      if (!tile) return;
+      if (tile.value <= 2) {
+        selectedTileId = null;
+        hint = null;
+        setMessage('2-tiles are already complete. Split a larger tile instead.', 'amber');
+        render();
+        return;
+      }
+      const directions = getValidDirections(tile);
+      selectedTileId = directions.length ? tileId : null;
+      hint = null;
+      if (!directions.length) {
+        setMessage('That tile has no open neighbor for a reverse split.', 'rose');
+      } else {
+        setMessage('Pick a direction or swipe to send one half into an empty neighboring cell.', 'teal');
+      }
+      render();
+    }
+
+    function performSplit(tileId, directionKey) {
+      const tile = getTileById(tileId);
+      const dir = DIRS[directionKey];
+      if (!tile || !dir || tile.value <= 2) return;
+      const nx = tile.x + dir.dx;
+      const ny = tile.y + dir.dy;
+      if (!inBounds(nx, ny) || occupied(nx, ny, tile.id)) {
+        setMessage('That direction is blocked.', 'rose');
+        render();
+        return;
+      }
+
+      pushHistory();
+
+      const half = tile.value / 2;
+      tile.value = half;
+      state.tiles.push({ id: ++nextTileId, x: nx, y: ny, value: half });
+      state.moves += 1;
+      state.score = Math.max(0, state.score - half * 2);
+      bankExtraTwos();
+      selectedTileId = null;
+      hint = null;
+
+      if (state.score === 0) {
+        setMessage('Score zeroed out — now preserve the exact final pair.', 'emerald');
+      } else {
+        setMessage(`Split ${half * 2} into ${half} + ${half}.`, 'teal');
+      }
+      render();
+    }
+
+    function checkVictory() {
+      const won = state.score === 0 && state.tiles.length === 2 && state.tiles.every((tile) => tile.value === 2);
+      if (!won) {
+        victoryModalEl.classList.add('hidden');
+        victoryModalEl.classList.remove('flex');
+        return false;
+      }
+      victoryMovesEl.textContent = state.moves.toString();
+      victoryModeEl.textContent = MODES[state.modeKey].label;
+      victoryModalEl.classList.remove('hidden');
+      victoryModalEl.classList.add('flex');
+      setMessage('Perfect reverse clear. Zero achieved.', 'emerald');
+      return true;
+    }
+
+    function resetGame(modeKey = state.modeKey || 'pure') {
+      state = createInitialState(modeKey);
+      history = [];
+      selectedTileId = null;
+      hint = null;
+      victoryModalEl.classList.add('hidden');
+      victoryModalEl.classList.remove('flex');
+      setMessage(modeKey === 'pure'
+        ? 'Start with the 2048 tile and carve the score all the way down to zero.'
+        : 'Max Mode is live — huge score, crowded opener, same reverse goal.', 'teal');
+      render();
+    }
+
+    function undoMove() {
+      const previous = history.pop();
+      if (!previous) return;
+      state = {
+        modeKey: previous.state.modeKey,
+        score: previous.state.score,
+        moves: previous.state.moves,
+        bankedTwos: previous.state.bankedTwos,
+        tiles: cloneTiles(previous.state.tiles)
+      };
+      nextTileId = previous.nextTileId;
+      selectedTileId = previous.selectedTileId;
+      hint = previous.hint;
+      victoryModalEl.classList.add('hidden');
+      victoryModalEl.classList.remove('flex');
+      setMessage('Previous reverse restored.', 'amber');
+      render();
+    }
+
+    function scoreMove(move) {
+      const simulated = {
+        tiles: cloneTiles(state.tiles),
+        bankedTwos: state.bankedTwos
+      };
+      const tile = simulated.tiles.find((entry) => entry.id === move.tileId);
+      const dir = DIRS[move.direction];
+      const half = tile.value / 2;
+      tile.value = half;
+      simulated.tiles.push({ id: Number.MAX_SAFE_INTEGER, x: tile.x + dir.dx, y: tile.y + dir.dy, value: half });
+
+      let banked = 0;
+      const twos = simulated.tiles.filter((entry) => entry.value === 2).sort((a, b) => a.id - b.id);
+      while (twos.length > 2) {
+        const retired = twos.shift();
+        simulated.tiles = simulated.tiles.filter((entry) => entry !== retired);
+        banked += 1;
+      }
+
+      const futureMoves = simulated.tiles.reduce((count, entry) => count + (entry.value > 2
+        ? Object.values(DIRS).filter((dirEntry) => {
+            const nx = entry.x + dirEntry.dx;
+            const ny = entry.y + dirEntry.dy;
+            return inBounds(nx, ny) && !simulated.tiles.some((other) => other !== entry && other.x === nx && other.y === ny);
+          }).length
+        : 0), 0);
+
+      return futureMoves * 12 + move.value / 8 - simulated.tiles.length * 3 + banked * 4;
+    }
+
+    function showHint() {
+      const moves = [];
+      for (const tile of state.tiles) {
+        for (const direction of getValidDirections(tile)) {
+          moves.push({ tileId: tile.id, direction, value: tile.value });
+        }
+      }
+
+      if (!moves.length) {
+        hint = null;
+        selectedTileId = null;
+        setMessage('No valid splits remain. Use Undo Reverse or reset the board.', 'rose');
+        render();
+        return;
+      }
+
+      moves.sort((a, b) => scoreMove(b) - scoreMove(a));
+      hint = { tileId: moves[0].tileId, direction: moves[0].direction };
+      selectedTileId = hint.tileId;
+      const tile = getTileById(hint.tileId);
+      setMessage(`Hint: split ${tile.value} toward ${hint.direction}.`, 'amber');
+      render();
+    }
+
+    function switchMode(modeKey) {
+      if (modeKey === state.modeKey) return;
+      resetGame(modeKey);
+    }
+
+    boardEl.addEventListener('pointerdown', (event) => {
+      touchStart = { x: event.clientX, y: event.clientY };
+    });
+
+    boardEl.addEventListener('pointerup', (event) => {
+      if (!touchStart || !selectedTileId) {
+        touchStart = null;
+        return;
+      }
+      const dx = event.clientX - touchStart.x;
+      const dy = event.clientY - touchStart.y;
+      touchStart = null;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+      const direction = Math.abs(dx) > Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down' : 'up');
+      performSplit(selectedTileId, direction);
+    });
+
+    boardEl.addEventListener('pointerleave', () => {
+      touchStart = null;
+    });
+
+    window.addEventListener('keydown', (event) => {
+      if (victoryModalEl.classList.contains('flex') && event.key === 'Escape') {
+        victoryModalEl.classList.add('hidden');
+        victoryModalEl.classList.remove('flex');
+        return;
+      }
+      if (!selectedTileId) return;
+      const keyMap = {
+        ArrowUp: 'up',
+        ArrowRight: 'right',
+        ArrowDown: 'down',
+        ArrowLeft: 'left'
+      };
+      const direction = keyMap[event.key];
+      if (!direction) return;
+      event.preventDefault();
+      performSplit(selectedTileId, direction);
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!boardEl.contains(event.target) && !overlayLayerEl.contains(event.target)) {
+        selectedTileId = null;
+        hint = null;
+        render();
+      }
+    });
+
+    undoBtn.addEventListener('click', undoMove);
+    hintBtn.addEventListener('click', showHint);
+    resetBtn.addEventListener('click', () => resetGame(state.modeKey));
+    pureModeBtn.addEventListener('click', () => switchMode('pure'));
+    maxModeBtn.addEventListener('click', () => switchMode('max'));
+    playAgainBtn.addEventListener('click', () => resetGame(state.modeKey));
+    window.addEventListener('resize', render);
+
+    createBoardBackground();
+    resetGame('pure');
+  </script>
+</body>
+</html>
