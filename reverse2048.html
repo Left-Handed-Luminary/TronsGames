@@ -27,11 +27,30 @@
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 24px 44px rgba(2, 6, 23, 0.45);
     }
 
+    #board {
+      touch-action: none;
+      overscroll-behavior: contain;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
     .board-grid {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
       grid-template-rows: repeat(5, minmax(0, 1fr));
       gap: 0.55rem;
+    }
+
+    .board-slot {
+      border-radius: 1rem;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(148, 163, 184, 0.05)),
+        rgba(15, 23, 42, 0.82);
+      box-shadow:
+        inset 0 2px 6px rgba(2, 6, 23, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     }
 
     .tile {
@@ -261,7 +280,7 @@
     let selectedTileId = null;
     let history = [];
     let hint = null;
-    let touchStart = null;
+    let activeGesture = null;
     let nextTileId = 1;
 
     function tileColor(value) {
@@ -304,7 +323,7 @@
       boardBackgroundEl.innerHTML = '';
       for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i += 1) {
         const cell = document.createElement('div');
-        cell.className = 'rounded-2xl border border-white/5 bg-white/5';
+        cell.className = 'board-slot';
         boardBackgroundEl.appendChild(cell);
       }
     }
@@ -590,27 +609,54 @@
       resetGame(modeKey);
     }
 
-    boardEl.addEventListener('pointerdown', (event) => {
-      touchStart = { x: event.clientX, y: event.clientY };
-    });
+    function clearGesture() {
+      activeGesture = null;
+    }
 
-    boardEl.addEventListener('pointerup', (event) => {
-      if (!touchStart || !selectedTileId) {
-        touchStart = null;
-        return;
-      }
-      const dx = event.clientX - touchStart.x;
-      const dy = event.clientY - touchStart.y;
-      touchStart = null;
+    function handleGestureMove(event) {
+      if (!activeGesture || activeGesture.pointerId !== event.pointerId || activeGesture.handled || !selectedTileId) return;
+      const dx = event.clientX - activeGesture.startX;
+      const dy = event.clientY - activeGesture.startY;
       if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
       const direction = Math.abs(dx) > Math.abs(dy)
         ? (dx > 0 ? 'right' : 'left')
         : (dy > 0 ? 'down' : 'up');
+      activeGesture.handled = true;
       performSplit(selectedTileId, direction);
+    }
+
+    boardEl.addEventListener('pointerdown', (event) => {
+      if (!event.isPrimary) return;
+      activeGesture = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        handled: false
+      };
+      boardEl.setPointerCapture(event.pointerId);
+    });
+
+    boardEl.addEventListener('pointermove', (event) => {
+      if (event.pointerType === 'touch') event.preventDefault();
+      handleGestureMove(event);
+    });
+
+    boardEl.addEventListener('pointerup', (event) => {
+      if (boardEl.hasPointerCapture(event.pointerId)) {
+        boardEl.releasePointerCapture(event.pointerId);
+      }
+      clearGesture();
+    });
+
+    boardEl.addEventListener('pointercancel', (event) => {
+      if (boardEl.hasPointerCapture(event.pointerId)) {
+        boardEl.releasePointerCapture(event.pointerId);
+      }
+      clearGesture();
     });
 
     boardEl.addEventListener('pointerleave', () => {
-      touchStart = null;
+      if (!activeGesture || activeGesture.handled) clearGesture();
     });
 
     window.addEventListener('keydown', (event) => {
