@@ -306,7 +306,7 @@
 
     function createInitialState(modeKey) {
       const mode = MODES[modeKey];
-      nextTileId = Math.max(...mode.tiles.map((tile) => tile.id), 0) + 1;
+      nextTileId = Math.max(...mode.tiles.map((tile) => tile.id), 0);
       return {
         modeKey,
         score: mode.score,
@@ -464,7 +464,7 @@
 
       const half = tile.value / 2;
       tile.value = half;
-      state.tiles.push({ id: nextTileId += 1, x: nx, y: ny, value: half });
+      state.tiles.push({ id: ++nextTileId, x: nx, y: ny, value: half });
       state.moves += 1;
       state.score = Math.max(0, state.score - half * 2);
       bankExtraTwos();
