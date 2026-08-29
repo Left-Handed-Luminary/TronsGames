@@ -415,6 +415,10 @@
         tileEl.style.fontSize = tile.value >= 1024 ? '1.15rem' : tile.value >= 128 ? '1.35rem' : '1.55rem';
         tileEl.innerHTML = `<span>${tile.value}</span>`;
         tileEl.setAttribute('aria-label', `Tile ${tile.value}`);
+        tileEl.addEventListener('touchstart', (event) => {
+          event.preventDefault();
+          onTilePress(tile.id);
+        }, { passive: false });
         tileEl.addEventListener('click', () => onTilePress(tile.id));
         tilesLayerEl.appendChild(tileEl);
       }
@@ -609,14 +613,33 @@
       resetGame(modeKey);
     }
 
+    function getPoint(event) {
+      if (event.changedTouches && event.changedTouches.length) return event.changedTouches[0];
+      if (event.touches && event.touches.length) return event.touches[0];
+      return event;
+    }
+
     function clearGesture() {
       activeGesture = null;
     }
 
+    function startGesture(event) {
+      if (event.type === 'mousedown' && event.button !== 0) return;
+      const point = getPoint(event);
+      activeGesture = {
+        kind: event.type.startsWith('touch') ? 'touch' : 'mouse',
+        startX: point.clientX,
+        startY: point.clientY,
+        handled: false
+      };
+    }
+
     function handleGestureMove(event) {
-      if (!activeGesture || activeGesture.pointerId !== event.pointerId || activeGesture.handled || !selectedTileId) return;
-      const dx = event.clientX - activeGesture.startX;
-      const dy = event.clientY - activeGesture.startY;
+      if (!activeGesture || activeGesture.handled || !selectedTileId) return;
+      if (activeGesture.kind === 'touch') event.preventDefault();
+      const point = getPoint(event);
+      const dx = point.clientX - activeGesture.startX;
+      const dy = point.clientY - activeGesture.startY;
       if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
       const direction = Math.abs(dx) > Math.abs(dy)
         ? (dx > 0 ? 'right' : 'left')
@@ -625,39 +648,16 @@
       performSplit(selectedTileId, direction);
     }
 
-    boardEl.addEventListener('pointerdown', (event) => {
-      if (!event.isPrimary) return;
-      activeGesture = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        handled: false
-      };
-      boardEl.setPointerCapture(event.pointerId);
-    });
-
-    boardEl.addEventListener('pointermove', (event) => {
-      if (event.pointerType === 'touch') event.preventDefault();
-      handleGestureMove(event);
-    });
-
-    boardEl.addEventListener('pointerup', (event) => {
-      if (boardEl.hasPointerCapture(event.pointerId)) {
-        boardEl.releasePointerCapture(event.pointerId);
-      }
-      clearGesture();
-    });
-
-    boardEl.addEventListener('pointercancel', (event) => {
-      if (boardEl.hasPointerCapture(event.pointerId)) {
-        boardEl.releasePointerCapture(event.pointerId);
-      }
-      clearGesture();
-    });
-
-    boardEl.addEventListener('pointerleave', () => {
-      if (!activeGesture || activeGesture.handled) clearGesture();
-    });
+    boardEl.addEventListener('mousedown', startGesture);
+    boardEl.addEventListener('touchstart', (event) => {
+      event.preventDefault();
+      startGesture(event);
+    }, { passive: false });
+    window.addEventListener('mousemove', handleGestureMove);
+    window.addEventListener('touchmove', handleGestureMove, { passive: false });
+    window.addEventListener('mouseup', clearGesture);
+    window.addEventListener('touchend', clearGesture);
+    window.addEventListener('touchcancel', clearGesture);
 
     window.addEventListener('keydown', (event) => {
       if (victoryModalEl.classList.contains('flex') && event.key === 'Escape') {
