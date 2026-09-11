@@ -40,6 +40,7 @@ The repository includes several one-page games and experiments, including:
 | `mega-minesweeper.html` | Expanded Minesweeper-style puzzle game |
 | `mergation.html` | Merge-style browser game prototype |
 | `reverse2048.html` | Reverse 2048 puzzle where you split tiles down to zero score |
+| `sleepy-puzzle.html` | Gentle tile-swapping picture puzzle with sleepy animal scenes |
 | `vector-maze.html` | Vector-line sliding maze puzzle game |
 | `wordle-clone.html` | Wordle-style word puzzle game |
 
