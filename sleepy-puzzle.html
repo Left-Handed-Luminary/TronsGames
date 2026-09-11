@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#090c17" />
+<title>Sleepy Shuffle</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #070914;
+  --panel: #101527;
+  --panel2: #151b31;
+  --text: #e8eaf2;
+  --muted: #949bb3;
+  --line: rgba(255,255,255,.08);
+  --accent: #aeb8ff;
+  --glow: rgba(174,184,255,.20);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text); font-family: Inter, ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body {
+  min-height: 100vh;
+  display:flex;
+  justify-content:center;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(78,88,150,.18), transparent 42%),
+    linear-gradient(180deg,#090c18,#070914 58%,#050710);
+  overscroll-behavior:none;
+}
+.app { width:min(100%, 560px); padding: max(18px, env(safe-area-inset-top)) 18px max(26px, env(safe-area-inset-bottom)); }
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.brand { font-size:18px; font-weight:700; letter-spacing:.2px; }
+.level-pill { font-size:13px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:8px 11px; white-space:nowrap; }
+.card { background:linear-gradient(180deg,var(--panel2),var(--panel)); border:1px solid var(--line); border-radius:24px; box-shadow:0 24px 60px rgba(0,0,0,.26); overflow:hidden; }
+.scene-wrap { padding:15px 15px 0; }
+.reference {
+  width:100%; aspect-ratio: 1 / 1; border-radius:18px; overflow:hidden;
+  border:1px solid var(--line); opacity:.78; position:relative;
+  background:#0a0f20 center / cover no-repeat;
+}
+.reference::after { content:"reference"; position:absolute; right:9px; bottom:8px; font-size:10px; letter-spacing:.8px; text-transform:uppercase; color:rgba(255,255,255,.68); background:rgba(2,5,12,.46); border:1px solid rgba(255,255,255,.08); padding:4px 7px; border-radius:999px; backdrop-filter: blur(4px); }
+.puzzle-shell { padding:15px; }
+.puzzle {
+  width:100%; aspect-ratio:1 / 1; display:grid; gap:3px;
+  background:#090c17; padding:3px; border-radius:19px; border:1px solid var(--line);
+  touch-action:none; user-select:none;
+}
+.tile { border-radius:7px; background-repeat:no-repeat; cursor:pointer; position:relative; transition:transform .16s ease, box-shadow .16s ease, opacity .16s ease; }
+.tile.selected { transform:scale(.965); box-shadow:0 0 0 2px var(--accent), 0 0 22px var(--glow); z-index:2; }
+.tile.correct::after { content:""; position:absolute; inset:4px; border-radius:5px; border:1px solid rgba(196,220,255,.12); pointer-events:none; }
+.info { padding:0 18px 18px; }
+.title { font-size:17px; font-weight:700; margin:0 0 5px; }
+.subtitle { color:var(--muted); font-size:13px; line-height:1.45; min-height:38px; margin:0; }
+.progress { display:flex; gap:5px; margin:16px 0 12px; }
+.progress span { height:5px; flex:1; border-radius:999px; background:rgba(255,255,255,.06); }
+.progress span.done { background:rgba(174,184,255,.50); }
+.controls { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+button { border:1px solid var(--line); background:#171d34; color:var(--text); font:inherit; font-size:14px; font-weight:650; border-radius:14px; padding:12px 10px; cursor:pointer; }
+button:active { transform:translateY(1px); }
+button.primary { background:#cbd1ff; color:#14172a; border-color:transparent; }
+button.ghost { color:#cfd4e6; }
+.footer-note { text-align:center; color:#6f768f; font-size:11px; margin-top:13px; line-height:1.5; }
+.overlay { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:22px; background:rgba(3,5,11,.62); backdrop-filter: blur(10px); z-index:10; }
+.overlay.show { display:flex; }
+.overlay-card { width:min(90vw,390px); background:#11172a; border:1px solid var(--line); border-radius:22px; padding:24px; text-align:center; box-shadow:0 28px 80px rgba(0,0,0,.42); }
+.overlay-card h2 { margin:0 0 7px; font-size:22px; }
+.overlay-card p { margin:0 0 17px; color:var(--muted); font-size:14px; line-height:1.5; }
+.overlay-card button { width:100%; }
+@media (min-width:520px){ .scene-wrap{ padding:18px 18px 0; } .puzzle-shell{ padding:18px; } }
+@media (prefers-reduced-motion: reduce){ * { transition:none !important; scroll-behavior:auto !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">Sleepy Shuffle</div>
+    <div class="level-pill" id="levelPill">Level 1 · 2×2</div>
+  </div>
+
+  <section class="card">
+    <div class="scene-wrap"><div class="reference" id="reference"></div></div>
+    <div class="puzzle-shell"><div class="puzzle" id="puzzle" aria-label="sleepy picture tile puzzle"></div></div>
+    <div class="info">
+      <h1 class="title" id="sceneTitle">Moon Cat</h1>
+      <p class="subtitle" id="subtitle">Tap two tiles to swap them, or swipe a tile toward a neighbor. No timer. No score.</p>
+      <div class="progress" id="progress"></div>
+      <div class="controls">
+        <button class="ghost" id="hintBtn">Fix one tile</button>
+        <button class="ghost" id="reshuffleBtn">Soft reshuffle</button>
+      </div>
+    </div>
+  </section>
+  <div class="footer-note">Designed for repetition, low contrast, and zero sound. The reference picture stays visible.</div>
+</div>
+
+<div class="overlay" id="overlay" role="dialog" aria-modal="true">
+  <div class="overlay-card">
+    <h2 id="overlayTitle">Picture settled.</h2>
+    <p id="overlayText">A slightly larger sleepy puzzle is ready.</p>
+    <button class="primary" id="nextBtn">Next sleepy level</button>
+  </div>
+</div>
+
+<script>
+const scenes = [
+  {name:'Moon Cat', animal:'cat', sky:'#111b39', ground:'#1a2140', fur:'#c7b6aa', accent:'#7d89c8'},
+  {name:'Cloud Fox', animal:'fox', sky:'#151b36', ground:'#20213e', fur:'#b77e62', accent:'#8992c6'},
+  {name:'Night Bunny', animal:'bunny', sky:'#101a32', ground:'#1d2640', fur:'#b9bcc6', accent:'#7987bd'},
+  {name:'Drowsy Bear', animal:'bear', sky:'#15182e', ground:'#24223a', fur:'#9c7c69', accent:'#7e86b3'},
+  {name:'Sleepy Pup', animal:'dog', sky:'#121b35', ground:'#20263d', fur:'#a98d73', accent:'#8791c8'},
+  {name:'Dozing Seal', animal:'seal', sky:'#0f1b33', ground:'#17283e', fur:'#9caab6', accent:'#7287bd'},
+  {name:'Starry Koala', animal:'koala', sky:'#15182f', ground:'#24233c', fur:'#9ea3ac', accent:'#858dc0'},
+  {name:'Cloud Panda', animal:'panda', sky:'#11172e', ground:'#21253b', fur:'#d0d2d8', accent:'#7e88ba'}
+];
+
+const puzzle = document.getElementById('puzzle');
+const reference = document.getElementById('reference');
+const levelPill = document.getElementById('levelPill');
+const sceneTitle = document.getElementById('sceneTitle');
+const subtitle = document.getElementById('subtitle');
+const progress = document.getElementById('progress');
+const overlay = document.getElementById('overlay');
+const nextBtn = document.getElementById('nextBtn');
+const hintBtn = document.getElementById('hintBtn');
+const reshuffleBtn = document.getElementById('reshuffleBtn');
+
+let level = Number(localStorage.getItem('sleepyShuffleLevel') || 1);
+let size = 2;
+let order = [];
+let selected = null;
+let imageUrl = '';
+let touchStart = null;
+let moveCount = 0;
+let lastSceneIndex = -1;
+
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])); }
+
+function animalShapes(animal, fur){
+  const dark = '#313345';
+  const light = '#e4e0da';
+  const commonFace = `<ellipse cx="250" cy="315" rx="108" ry="86" fill="${fur}"/><ellipse cx="250" cy="326" rx="74" ry="50" fill="rgba(255,255,255,.07)"/><path d="M205 315 Q220 325 235 315" stroke="${dark}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M265 315 Q280 325 295 315" stroke="${dark}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M243 341 Q250 347 257 341" stroke="${dark}" stroke-width="6" fill="none" stroke-linecap="round"/>`;
+  if(animal==='cat') return `<path d="M163 275 L188 202 L225 270 Z" fill="${fur}"/><path d="M337 275 L312 202 L275 270 Z" fill="${fur}"/>${commonFace}<path d="M178 360 Q115 350 118 405 Q145 426 196 392" fill="none" stroke="${fur}" stroke-width="25" stroke-linecap="round"/>`;
+  if(animal==='fox') return `<path d="M148 268 L183 188 L228 278 Z" fill="${fur}"/><path d="M352 268 L317 188 L272 278 Z" fill="${fur}"/>${commonFace}<path d="M167 366 Q115 382 131 421 Q176 441 216 397" fill="none" stroke="${fur}" stroke-width="30" stroke-linecap="round"/><path d="M130 417 Q154 431 177 423" stroke="${light}" stroke-width="18" stroke-linecap="round"/>`;
+  if(animal==='bunny') return `<ellipse cx="198" cy="224" rx="34" ry="88" fill="${fur}" transform="rotate(-10 198 224)"/><ellipse cx="302" cy="224" rx="34" ry="88" fill="${fur}" transform="rotate(10 302 224)"/>${commonFace}<circle cx="342" cy="385" r="31" fill="${fur}"/>`;
+  if(animal==='bear') return `<circle cx="174" cy="265" r="45" fill="${fur}"/><circle cx="326" cy="265" r="45" fill="${fur}"/>${commonFace}<ellipse cx="250" cy="379" rx="120" ry="38" fill="${fur}" opacity=".92"/>`;
+  if(animal==='dog') return `<path d="M170 263 Q103 247 130 343 Q162 326 195 288" fill="${fur}"/><path d="M330 263 Q397 247 370 343 Q338 326 305 288" fill="${fur}"/>${commonFace}<path d="M358 380 Q405 364 407 408" fill="none" stroke="${fur}" stroke-width="21" stroke-linecap="round"/>`;
+  if(animal==='seal') return `<ellipse cx="250" cy="345" rx="137" ry="77" fill="${fur}"/><circle cx="250" cy="295" r="86" fill="${fur}"/><path d="M207 297 Q220 307 233 297" stroke="${dark}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M267 297 Q280 307 293 297" stroke="${dark}" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="250" cy="323" r="7" fill="${dark}"/><path d="M174 354 Q128 332 121 365" stroke="${fur}" stroke-width="29" fill="none" stroke-linecap="round"/>`;
+  if(animal==='koala') return `<circle cx="164" cy="275" r="58" fill="${fur}"/><circle cx="336" cy="275" r="58" fill="${fur}"/>${commonFace}<ellipse cx="250" cy="337" rx="22" ry="29" fill="${dark}"/>`;
+  if(animal==='panda') return `<circle cx="178" cy="260" r="47" fill="#30323d"/><circle cx="322" cy="260" r="47" fill="#30323d"/><ellipse cx="250" cy="315" rx="108" ry="86" fill="${fur}"/><ellipse cx="210" cy="316" rx="28" ry="34" fill="#393b47" transform="rotate(20 210 316)"/><ellipse cx="290" cy="316" rx="28" ry="34" fill="#393b47" transform="rotate(-20 290 316)"/><path d="M198 314 Q210 323 222 314" stroke="#171924" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M278 314 Q290 323 302 314" stroke="#171924" stroke-width="6" fill="none" stroke-linecap="round"/><ellipse cx="250" cy="343" rx="14" ry="10" fill="#2a2c37"/>`;
+  return commonFace;
+}
+
+function makeScene(scene, extra){
+  let stars='';
+  for(let i=0;i<10+extra*2;i++){
+    const x = 28 + ((i*79 + extra*31) % 445);
+    const y = 28 + ((i*47 + extra*13) % 185);
+    const r = i%4===0 ? 2.8 : 1.6;
+    stars += `<circle cx="${x}" cy="${y}" r="${r}" fill="#e6e9ff" opacity="${0.24 + (i%3)*0.10}"/>`;
+  }
+  let clouds='';
+  const cloudCount = Math.min(5, 2 + Math.floor(extra/2));
+  for(let i=0;i<cloudCount;i++){
+    const x = 34 + ((i*121 + extra*41) % 380);
+    const y = 72 + ((i*63 + extra*17) % 130);
+    const s = .70 + (i%3)*.15;
+    clouds += `<g transform="translate(${x} ${y}) scale(${s})" opacity=".18"><ellipse cx="48" cy="26" rx="46" ry="18" fill="#c9d1e6"/><circle cx="31" cy="21" r="20" fill="#c9d1e6"/><circle cx="59" cy="15" r="25" fill="#c9d1e6"/></g>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <rect width="500" height="500" fill="${scene.sky}"/>
+  <circle cx="390" cy="92" r="46" fill="#dfe3ef" opacity=".75"/>
+  <circle cx="408" cy="77" r="44" fill="${scene.sky}" opacity=".97"/>
+  ${stars}${clouds}
+  <path d="M0 380 Q95 345 180 382 T350 378 T500 390 V500 H0Z" fill="${scene.ground}"/>
+  <ellipse cx="250" cy="405" rx="165" ry="48" fill="rgba(5,8,18,.28)"/>
+  ${animalShapes(scene.animal, scene.fur)}
+  <path d="M163 398 Q250 355 337 398 Q319 443 250 452 Q181 443 163 398Z" fill="${scene.accent}" opacity=".45"/>
+  <path d="M183 408 Q250 376 317 408" stroke="rgba(255,255,255,.10)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function levelSize(n){ return n<=3 ? 2 : n<=8 ? 3 : 4; }
+function extraForLevel(n){ return Math.min(8, Math.floor((n-1)/2)); }
+function identity(n){ return Array.from({length:n},(_,i)=>i); }
+function isSolved(){ return order.every((v,i)=>v===i); }
+
+function shuffleSolvable(n, difficulty){
+  const a = identity(n);
+  let swaps = Math.max(3, Math.min(14, 3 + difficulty));
+  for(let k=0;k<swaps;k++){
+    const i = Math.floor(Math.random()*n);
+    let j = Math.floor(Math.random()*n);
+    if(j===i) j = (j+1)%n;
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  if(a.every((v,i)=>v===i)) [a[0],a[1]]=[a[1],a[0]];
+  return a;
+}
+
+function chooseScene(){
+  let idx = Math.floor(Math.random()*scenes.length);
+  if(idx===lastSceneIndex) idx=(idx+1)%scenes.length;
+  lastSceneIndex=idx;
+  return scenes[idx];
+}
+
+let scene = scenes[0];
+
+function setupLevel(){
+  selected = null;
+  moveCount = 0;
+  size = levelSize(level);
+  scene = chooseScene();
+  imageUrl = makeScene(scene, extraForLevel(level));
+  order = shuffleSolvable(size*size, Math.ceil(level/2));
+  reference.style.backgroundImage = `url("${imageUrl}")`;
+  sceneTitle.textContent = scene.name;
+  levelPill.textContent = `Level ${level} · ${size}×${size}`;
+  subtitle.textContent = level<4
+    ? 'Tap two tiles to swap them, or swipe a tile toward a neighbor. No timer. No score.'
+    : level<9
+    ? 'A few more pieces now. The reference stays visible, and “Fix one tile” always helps.'
+    : 'More pieces, same slow rhythm. Use the helper whenever your eyes start getting heavy.';
+  buildProgress();
+  render();
+}
+
+function buildProgress(){
+  progress.innerHTML='';
+  const count=6;
+  const stage=((level-1)%count)+1;
+  for(let i=1;i<=count;i++){
+    const s=document.createElement('span');
+    if(i<=stage) s.classList.add('done');
+    progress.appendChild(s);
+  }
+}
+
+function render(){
+  puzzle.innerHTML='';
+  puzzle.style.gridTemplateColumns=`repeat(${size},1fr)`;
+  order.forEach((piece,pos)=>{
+    const tile=document.createElement('div');
+    tile.className='tile';
+    if(selected===pos) tile.classList.add('selected');
+    if(piece===pos) tile.classList.add('correct');
+    tile.dataset.pos=pos;
+    const row=Math.floor(piece/size), col=piece%size;
+    tile.style.backgroundImage=`url("${imageUrl}")`;
+    tile.style.backgroundSize=`${size*100}% ${size*100}%`;
+    const x=size===1?0:(col/(size-1))*100;
+    const y=size===1?0:(row/(size-1))*100;
+    tile.style.backgroundPosition=`${x}% ${y}%`;
+    tile.addEventListener('click',()=>tapTile(pos));
+    tile.addEventListener('pointerdown',e=>startSwipe(e,pos));
+    tile.addEventListener('pointerup',e=>endSwipe(e,pos));
+    puzzle.appendChild(tile);
+  });
+}
+
+function tapTile(pos){
+  if(selected===null){ selected=pos; render(); return; }
+  if(selected===pos){ selected=null; render(); return; }
+  swap(selected,pos);
+  selected=null;
+  render();
+  checkWin();
+}
+
+function startSwipe(e,pos){
+  touchStart={x:e.clientX,y:e.clientY,pos};
+}
+function endSwipe(e,pos){
+  if(!touchStart || touchStart.pos!==pos) return;
+  const dx=e.clientX-touchStart.x, dy=e.clientY-touchStart.y;
+  touchStart=null;
+  if(Math.hypot(dx,dy)<30) return;
+  const row=Math.floor(pos/size), col=pos%size;
+  let nr=row,nc=col;
+  if(Math.abs(dx)>Math.abs(dy)) nc += dx>0 ? 1 : -1;
+  else nr += dy>0 ? 1 : -1;
+  if(nr<0||nr>=size||nc<0||nc>=size) return;
+  const target=nr*size+nc;
+  swap(pos,target);
+  selected=null;
+  render();
+  checkWin();
+}
+
+function swap(a,b){ [order[a],order[b]]=[order[b],order[a]]; moveCount++; }
+
+function fixOne(){
+  if(isSolved()) return;
+  let wrong = order.findIndex((v,i)=>v!==i);
+  const neededPiece = wrong;
+  const source = order.indexOf(neededPiece);
+  swap(wrong,source);
+  selected=null;
+  render();
+  checkWin();
+}
+
+function softReshuffle(){
+  order = shuffleSolvable(size*size, Math.max(2,Math.ceil(level/3)));
+  selected=null;
+  moveCount=0;
+  render();
+}
+
+function checkWin(){
+  if(!isSolved()) return;
+  setTimeout(()=>{
+    document.getElementById('overlayTitle').textContent='Picture settled.';
+    document.getElementById('overlayText').textContent = size<4
+      ? 'The next level adds a little more repetition.'
+      : 'The next scene keeps the same quiet pace with a fresh shuffle.';
+    overlay.classList.add('show');
+  },180);
+}
+
+nextBtn.addEventListener('click',()=>{
+  overlay.classList.remove('show');
+  level++;
+  localStorage.setItem('sleepyShuffleLevel', String(level));
+  setupLevel();
+});
+hintBtn.addEventListener('click',fixOne);
+reshuffleBtn.addEventListener('click',softReshuffle);
+
+setupLevel();
+</script>
+</body>
+</html>
