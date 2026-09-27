@@ -772,6 +772,17 @@ function endDrag(event) {
   }
 }
 
+function handleLostPointerCapture(event) {
+  if (pointerId === null || event.pointerId !== pointerId) {
+    return;
+  }
+  clearPointerState();
+  if (game.phase === 'aim') {
+    game.previewAngle = 0;
+    updateUI();
+  }
+}
+
 function nudgePreview(delta) {
   const next = clamp((game.previewAngle || MIN_RELEASE) + delta, MIN_RELEASE, MAX_RELEASE);
   game.previewAngle = next;
@@ -969,6 +980,7 @@ if (ctx) {
   canvas.addEventListener('pointermove', moveDrag);
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', handleLostPointerCapture);
   canvas.addEventListener('keydown', handleCanvasKeydown);
 
   window.addEventListener('resize', () => {
