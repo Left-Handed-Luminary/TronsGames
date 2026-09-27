@@ -361,11 +361,25 @@ const MIN_RELEASE = 8;
 const MAX_RELEASE = 62;
 const STORAGE_KEY = 'newtonsCradleBestScore';
 
+function loadBestScore() {
+  try {
+    return Number(localStorage.getItem(STORAGE_KEY) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function saveBestScore(value) {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(value));
+  } catch {}
+}
+
 const game = {
   round: 1,
   score: 0,
   streak: 0,
-  best: Number(localStorage.getItem(STORAGE_KEY) || 0),
+  best: loadBestScore(),
   requiredCount: 1,
   targetAngle: 24,
   previewAngle: 0,
@@ -451,7 +465,7 @@ function retryRound() {
 function updateBest() {
   if (game.score > game.best) {
     game.best = game.score;
-    localStorage.setItem(STORAGE_KEY, String(game.best));
+    saveBestScore(game.best);
   }
 }
 
@@ -849,11 +863,6 @@ canvas.addEventListener('pointerdown', beginDrag);
 canvas.addEventListener('pointermove', moveDrag);
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
-canvas.addEventListener('pointerleave', (event) => {
-  if (game.dragging && event.pointerId === pointerId) {
-    endDrag(event);
-  }
-});
 
 window.addEventListener('resize', () => {
   metrics = computeMetrics();
