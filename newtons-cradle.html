@@ -343,7 +343,7 @@ ul {
 
 <script>
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas ? canvas.getContext('2d') : null;
 
 const roundValue = document.getElementById('roundValue');
 const scoreValue = document.getElementById('scoreValue');
@@ -545,6 +545,19 @@ function getAngles() {
   return angles;
 }
 
+function isBallHighlighted(index) {
+  if (game.phase === 'aim') {
+    return index < game.requiredCount;
+  }
+  if (!game.animation) {
+    return false;
+  }
+  if (game.animation.side === 'left') {
+    return index < game.requiredCount;
+  }
+  return index >= BALL_COUNT - game.requiredCount;
+}
+
 function draw() {
   if (!ctx) {
     return;
@@ -586,7 +599,7 @@ function draw() {
     const radians = angles[index] * Math.PI / 180;
     const bobX = anchorX + Math.sin(radians) * stringLength;
     const bobY = topY + Math.cos(radians) * stringLength;
-    return { anchorX, bobX, bobY, angle: angles[index], highlighted: index < game.requiredCount };
+    return { anchorX, bobX, bobY, angle: angles[index], highlighted: isBallHighlighted(index) };
   });
 
   ctx.strokeStyle = 'rgba(226, 232, 240, 0.82)';
@@ -650,14 +663,13 @@ function drawTargetGuide() {
 function drawBall(bob, index) {
   const { radius } = metrics;
   const gradient = ctx.createRadialGradient(bob.bobX - radius * 0.35, bob.bobY - radius * 0.4, radius * 0.18, bob.bobX, bob.bobY, radius);
-  const isRequired = index < game.requiredCount;
-  const isActiveLeft = game.phase === 'aim' && isRequired;
-  gradient.addColorStop(0, isActiveLeft ? '#d9fdff' : '#eef7ff');
-  gradient.addColorStop(0.45, isActiveLeft ? '#7dd3fc' : '#cbd5e1');
-  gradient.addColorStop(1, isActiveLeft ? '#0f3f63' : '#415168');
+  const isActive = bob.highlighted;
+  gradient.addColorStop(0, isActive ? '#d9fdff' : '#eef7ff');
+  gradient.addColorStop(0.45, isActive ? '#7dd3fc' : '#cbd5e1');
+  gradient.addColorStop(1, isActive ? '#0f3f63' : '#415168');
 
   ctx.save();
-  if (isActiveLeft) {
+  if (isActive) {
     ctx.shadowColor = 'rgba(103, 232, 249, 0.45)';
     ctx.shadowBlur = game.dragging ? 26 : 18;
   }
