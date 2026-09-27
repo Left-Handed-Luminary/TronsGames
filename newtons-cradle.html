@@ -992,15 +992,11 @@ if (canvas && ctx) {
   metrics = computeMetrics();
   requestAnimationFrame(frame);
 } else {
-  if (canvasShell) {
+  if (!canvas && canvasShell) {
     const fallback = document.createElement('div');
     fallback.className = 'canvas-fallback';
     fallback.textContent = 'Newton\'s Cradle needs HTML canvas support. Try a modern browser to use the interactive game.';
-    if (canvas) {
-      canvas.replaceWith(fallback);
-    } else {
-      canvasShell.appendChild(fallback);
-    }
+    canvasShell.appendChild(fallback);
   }
   statusTitle.textContent = 'Canvas unavailable';
   statusText.textContent = 'Your browser does not support the interactive drawing surface for this game.';
