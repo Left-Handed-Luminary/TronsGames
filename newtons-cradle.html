@@ -992,7 +992,15 @@ if (ctx) {
   }
   statusTitle.textContent = 'Canvas unavailable';
   statusText.textContent = 'Your browser does not support the interactive drawing surface for this game.';
+  roundValue.textContent = '—';
+  scoreValue.textContent = '—';
+  streakValue.textContent = '—';
+  bestValue.textContent = '—';
+  objectiveValue.textContent = 'Canvas required';
   objectiveText.textContent = 'Canvas support is required for Newton\'s Cradle.';
+  resultLabel.textContent = 'Unavailable';
+  deltaLabel.textContent = '—';
+  accuracyFill.style.width = '0%';
   retryBtn.disabled = true;
   resetBtn.disabled = true;
   nextRoundBtn.disabled = true;
