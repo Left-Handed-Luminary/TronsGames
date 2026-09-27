@@ -486,9 +486,13 @@ function updateUI() {
   streakValue.textContent = String(game.streak);
   bestValue.textContent = formatNumber(game.best);
   objectiveValue.textContent = `Launch ${game.requiredCount} ball${game.requiredCount > 1 ? 's' : ''} to ${game.targetAngle}°`;
-  objectiveText.textContent = game.phase === 'roundOver'
-    ? 'Round complete. Advance when you are ready for a new target.'
-    : 'Score on the first rebound apex on the right side.';
+  if (game.phase === 'roundOver') {
+    objectiveText.textContent = game.result && game.result.points === 0
+      ? 'Missed the target. Retry this round or reset the run.'
+      : 'Round complete. Advance when you are ready for a new target.';
+  } else {
+    objectiveText.textContent = 'Score on the first rebound apex on the right side.';
+  }
 
   if (!game.result) {
     accuracyFill.style.width = '0%';
@@ -682,10 +686,13 @@ function pointToCanvas(event) {
 
 function ballUnderPointer(point) {
   const { topY, stringLength, radius, anchors } = metrics || computeMetrics();
-  const restY = topY + stringLength;
+  const angles = getAngles();
   for (let i = 0; i < game.requiredCount; i += 1) {
-    const dx = point.x - anchors[i];
-    const dy = point.y - restY;
+    const radians = angles[i] * Math.PI / 180;
+    const bobX = anchors[i] + Math.sin(radians) * stringLength;
+    const bobY = topY + Math.cos(radians) * stringLength;
+    const dx = point.x - bobX;
+    const dy = point.y - bobY;
     if ((dx * dx) + (dy * dy) <= (radius + 14) * (radius + 14)) {
       return true;
     }
