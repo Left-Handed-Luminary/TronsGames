@@ -352,6 +352,7 @@ ul {
 
 <script>
 const canvas = document.getElementById('gameCanvas');
+const canvasShell = document.querySelector('.canvas-shell');
 const ctx = canvas ? canvas.getContext('2d') : null;
 
 const roundValue = document.getElementById('roundValue');
@@ -976,11 +977,15 @@ if (ctx) {
   metrics = computeMetrics();
   requestAnimationFrame(frame);
 } else {
-  canvas.hidden = true;
-  const fallback = document.createElement('div');
-  fallback.className = 'canvas-fallback';
-  fallback.textContent = 'Newton\'s Cradle needs HTML canvas support. Try a modern browser to use the interactive game.';
-  canvas.parentElement.appendChild(fallback);
+  if (canvas) {
+    canvas.hidden = true;
+  }
+  if (canvasShell) {
+    const fallback = document.createElement('div');
+    fallback.className = 'canvas-fallback';
+    fallback.textContent = 'Newton\'s Cradle needs HTML canvas support. Try a modern browser to use the interactive game.';
+    canvasShell.appendChild(fallback);
+  }
   statusTitle.textContent = 'Canvas unavailable';
   statusText.textContent = 'Your browser does not support the interactive drawing surface for this game.';
   objectiveText.textContent = 'Canvas support is required for Newton\'s Cradle.';
