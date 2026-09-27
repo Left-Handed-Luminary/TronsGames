@@ -762,7 +762,7 @@ function handleCanvasKeydown(event) {
       updateUI();
       return;
     }
-    if (event.key === ' ' || event.key === 'Enter') {
+    if (event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter') {
       event.preventDefault();
       if (game.previewAngle >= MIN_RELEASE) {
         launch(game.previewAngle);
@@ -785,8 +785,7 @@ function handleCanvasKeydown(event) {
 
   if ((event.key === 'n' || event.key === 'N') && game.phase === 'roundOver') {
     event.preventDefault();
-    game.round += 1;
-    startRound();
+    advanceRound();
   }
 }
 
@@ -805,6 +804,21 @@ function launch(angle) {
     measured: false
   };
   updateUI();
+}
+
+function advanceRound() {
+  if (game.phase !== 'roundOver') {
+    return;
+  }
+  game.round += 1;
+  startRound();
+}
+
+function resetRun() {
+  game.round = 1;
+  game.score = 0;
+  game.streak = 0;
+  startRound();
 }
 
 function transferAmplitude(amplitude, nextSide, apexes) {
@@ -908,22 +922,11 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-nextRoundBtn.addEventListener('click', () => {
-  if (game.phase !== 'roundOver') {
-    return;
-  }
-  game.round += 1;
-  startRound();
-});
+nextRoundBtn.addEventListener('click', advanceRound);
 
 retryBtn.addEventListener('click', retryRound);
 
-resetBtn.addEventListener('click', () => {
-  game.round = 1;
-  game.score = 0;
-  game.streak = 0;
-  startRound();
-});
+resetBtn.addEventListener('click', resetRun);
 
 canvas.addEventListener('pointerdown', beginDrag);
 canvas.addEventListener('pointermove', moveDrag);
