@@ -992,7 +992,7 @@ if (canvas && ctx) {
   metrics = computeMetrics();
   requestAnimationFrame(frame);
 } else {
-  if (!canvas && canvasShell) {
+  if (canvasShell) {
     const fallback = document.createElement('div');
     fallback.className = 'canvas-fallback';
     fallback.textContent = 'Newton\'s Cradle needs HTML canvas support. Try a modern browser to use the interactive game.';
