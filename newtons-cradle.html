@@ -111,6 +111,10 @@ canvas {
   height: auto;
   touch-action: none;
 }
+canvas:focus-visible {
+  outline: 3px solid rgba(103, 232, 249, 0.9);
+  outline-offset: -3px;
+}
 .status-bar {
   display: flex;
   align-items: center;
@@ -275,7 +279,7 @@ ul {
       </div>
 
       <div class="canvas-shell">
-        <canvas id="gameCanvas" width="920" height="560" aria-label="Interactive Newton's Cradle game"></canvas>
+        <canvas id="gameCanvas" width="920" height="560" tabindex="0" aria-label="Interactive Newton's Cradle game"></canvas>
       </div>
 
       <div class="status-bar">
@@ -311,6 +315,7 @@ ul {
         <h3>Controls</h3>
         <ul>
           <li>Drag the highlighted group on the left to set the release angle.</li>
+          <li>Keyboard: focus the cradle, use Left/Right or Up/Down to aim, then press Space or Enter to release.</li>
           <li>Release to send the same number of balls swinging out on the right.</li>
           <li>Perfect rebounds boost your streak and earn bigger score multipliers.</li>
         </ul>
@@ -732,6 +737,57 @@ function endDrag(event) {
   }
 }
 
+function nudgePreview(delta) {
+  const next = clamp((game.previewAngle || MIN_RELEASE) + delta, MIN_RELEASE, MAX_RELEASE);
+  game.previewAngle = next;
+  updateUI();
+}
+
+function handleCanvasKeydown(event) {
+  if (game.phase === 'aim') {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      nudgePreview(2);
+      return;
+    }
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!game.previewAngle || game.previewAngle <= MIN_RELEASE) {
+        game.previewAngle = 0;
+      } else {
+        game.previewAngle = clamp(game.previewAngle - 2, MIN_RELEASE, MAX_RELEASE);
+      }
+      updateUI();
+      return;
+    }
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      if (game.previewAngle >= MIN_RELEASE) {
+        launch(game.previewAngle);
+      }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      game.previewAngle = 0;
+      updateUI();
+      return;
+    }
+  }
+
+  if (event.key === 'r' || event.key === 'R') {
+    event.preventDefault();
+    retryRound();
+    return;
+  }
+
+  if ((event.key === 'n' || event.key === 'N') && game.phase === 'roundOver') {
+    event.preventDefault();
+    game.round += 1;
+    startRound();
+  }
+}
+
 function launch(angle) {
   game.phase = 'animating';
   game.measuredAngle = 0;
@@ -863,6 +919,7 @@ canvas.addEventListener('pointerdown', beginDrag);
 canvas.addEventListener('pointermove', moveDrag);
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('keydown', handleCanvasKeydown);
 
 window.addEventListener('resize', () => {
   metrics = computeMetrics();
