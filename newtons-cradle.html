@@ -975,7 +975,7 @@ retryBtn.addEventListener('click', retryRound);
 
 resetBtn.addEventListener('click', resetRun);
 
-if (ctx) {
+if (canvas && ctx) {
   canvas.addEventListener('pointerdown', beginDrag);
   canvas.addEventListener('pointermove', moveDrag);
   canvas.addEventListener('pointerup', endDrag);
