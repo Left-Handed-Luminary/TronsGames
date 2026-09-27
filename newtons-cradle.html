@@ -378,7 +378,8 @@ const STORAGE_KEY = 'newtonsCradleBestScore';
 
 function loadBestScore() {
   try {
-    return Number(localStorage.getItem(STORAGE_KEY) || 0);
+    const value = Number(localStorage.getItem(STORAGE_KEY) || 0);
+    return Number.isFinite(value) ? value : 0;
   } catch {
     return 0;
   }
@@ -739,6 +740,7 @@ function beginDrag(event) {
   if (game.phase !== 'aim') {
     return;
   }
+  metrics = computeMetrics();
   const point = pointToCanvas(event);
   if (!ballUnderPointer(point)) {
     return;
