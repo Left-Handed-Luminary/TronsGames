@@ -687,10 +687,10 @@ function ballUnderPointer(point) {
 function angleFromPointer(point) {
   const { topY, anchors } = metrics || computeMetrics();
   const groupCenterX = (anchors[0] + anchors[game.requiredCount - 1]) / 2;
-  const dx = point.x - groupCenterX;
+  const dx = groupCenterX - point.x;
   const dy = point.y - topY;
   const radians = Math.atan2(dx, dy);
-  const degrees = -radians * 180 / Math.PI;
+  const degrees = radians * 180 / Math.PI;
   if (degrees < MIN_RELEASE) {
     return 0;
   }
