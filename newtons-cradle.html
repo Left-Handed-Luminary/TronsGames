@@ -115,6 +115,15 @@ canvas:focus-visible {
   outline: 3px solid rgba(103, 232, 249, 0.9);
   outline-offset: -3px;
 }
+.canvas-fallback {
+  display: grid;
+  place-items: center;
+  min-height: 560px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.6;
+}
 .status-bar {
   display: flex;
   align-items: center;
@@ -967,6 +976,11 @@ if (ctx) {
   metrics = computeMetrics();
   requestAnimationFrame(frame);
 } else {
+  canvas.hidden = true;
+  const fallback = document.createElement('div');
+  fallback.className = 'canvas-fallback';
+  fallback.textContent = 'Newton\'s Cradle needs HTML canvas support. Try a modern browser to use the interactive game.';
+  canvas.parentElement.appendChild(fallback);
   statusTitle.textContent = 'Canvas unavailable';
   statusText.textContent = 'Your browser does not support the interactive drawing surface for this game.';
   objectiveText.textContent = 'Canvas support is required for Newton\'s Cradle.';
