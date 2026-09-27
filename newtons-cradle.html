@@ -671,7 +671,11 @@ function angleFromPointer(point) {
   const dx = point.x - groupCenterX;
   const dy = point.y - topY;
   const radians = Math.atan2(dx, dy);
-  return clamp((-radians * 180 / Math.PI), MIN_RELEASE, MAX_RELEASE);
+  const degrees = -radians * 180 / Math.PI;
+  if (degrees < MIN_RELEASE) {
+    return 0;
+  }
+  return clamp(degrees, MIN_RELEASE, MAX_RELEASE);
 }
 
 function beginDrag(event) {
