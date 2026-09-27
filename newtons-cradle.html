@@ -366,7 +366,6 @@ const resultLabel = document.getElementById('resultLabel');
 const deltaLabel = document.getElementById('deltaLabel');
 const statusTitle = document.getElementById('statusTitle');
 const statusText = document.getElementById('statusText');
-const buttonRow = document.querySelector('.button-row');
 const nextRoundBtn = document.getElementById('nextRoundBtn');
 const retryBtn = document.getElementById('retryBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -1002,9 +1001,6 @@ if (ctx) {
   resultLabel.textContent = 'Unavailable';
   deltaLabel.textContent = '—';
   accuracyFill.style.width = '0%';
-  if (buttonRow) {
-    buttonRow.hidden = true;
-  }
   retryBtn.disabled = true;
   resetBtn.disabled = true;
   nextRoundBtn.disabled = true;
