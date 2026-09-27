@@ -38,6 +38,7 @@ The repository includes several one-page games and experiments, including:
 | `defender-clone.html` | Defender-style arcade prototype |
 | `ghostboy.html` | Character-based browser game experiment |
 | `mega-minesweeper.html` | Expanded Minesweeper-style puzzle game |
+| `newtons-cradle.html` | Momentum-transfer timing challenge inspired by the classic desktop toy |
 | `mergation.html` | Merge-style browser game prototype |
 | `reverse2048.html` | Reverse 2048 puzzle where you split tiles down to zero score |
 | `sleepy-puzzle.html` | Gentle tile-swapping picture puzzle with sleepy animal scenes |

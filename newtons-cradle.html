@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#06111f" />
+<title>Newton's Cradle</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #06111f;
+  --panel: rgba(9, 20, 37, 0.88);
+  --panel-2: rgba(16, 28, 50, 0.92);
+  --line: rgba(148, 163, 184, 0.18);
+  --text: #ecf4ff;
+  --muted: #9db1c9;
+  --accent: #67e8f9;
+  --accent-2: #facc15;
+  --good: #34d399;
+  --bad: #f87171;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  min-height: 100vh;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(103, 232, 249, 0.15), transparent 28%),
+    radial-gradient(circle at 85% 15%, rgba(250, 204, 21, 0.13), transparent 24%),
+    linear-gradient(180deg, #081120, #040a14 62%, #03070f);
+}
+.app {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+}
+.hero {
+  text-align: center;
+  padding: 12px 0 18px;
+}
+.hero p.eyebrow {
+  margin: 0;
+  color: #8ce9f7;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+.hero h1 {
+  margin: 10px 0 10px;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 1;
+}
+.hero .lede {
+  max-width: 760px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.layout {
+  display: grid;
+  gap: 18px;
+}
+.panel {
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
+}
+.stage {
+  padding: 18px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: rgba(2, 8, 20, 0.36);
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 20px;
+  padding: 14px;
+}
+.stat-label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.stat-value {
+  margin-top: 8px;
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  font-weight: 900;
+}
+.canvas-shell {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(103, 232, 249, 0.08), transparent 38%),
+    linear-gradient(180deg, rgba(7, 17, 31, 0.95), rgba(3, 9, 17, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+canvas:focus-visible {
+  outline: 3px solid rgba(103, 232, 249, 0.9);
+  outline-offset: -3px;
+}
+.canvas-fallback {
+  display: grid;
+  place-items: center;
+  min-height: 560px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.status-copy {
+  flex: 1 1 340px;
+  min-height: 58px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(5, 12, 24, 0.54);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+.status-copy strong {
+  display: block;
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #a5f3fc;
+  margin-bottom: 6px;
+}
+.status-copy span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+.button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.16s ease, opacity 0.16s ease, background 0.16s ease;
+}
+button:active { transform: translateY(1px) scale(0.99); }
+button.primary {
+  background: linear-gradient(135deg, #67e8f9, #38bdf8);
+  color: #042033;
+}
+button.secondary {
+  background: rgba(148, 163, 184, 0.13);
+  color: var(--text);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+button.warn {
+  background: rgba(250, 204, 21, 0.13);
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.2);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sidebar {
+  padding: 18px;
+}
+.card {
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(3, 10, 22, 0.44);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+.card + .card { margin-top: 14px; }
+.card h2, .card h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #9fe9fb;
+}
+.objective {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+.objective .target {
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+.objective .subtle, .card p, .card li {
+  color: var(--muted);
+  line-height: 1.55;
+}
+.meter {
+  margin-top: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #38bdf8, #facc15);
+}
+.legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+.footer-note {
+  margin-top: 14px;
+  text-align: center;
+  color: #6f849c;
+  font-size: 0.8rem;
+}
+@media (min-width: 980px) {
+  .layout { grid-template-columns: minmax(0, 1.6fr) minmax(300px, 0.84fr); }
+}
+@media (max-width: 720px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <p class="eyebrow">Momentum Challenge</p>
+    <h1>Newton's Cradle</h1>
+    <p class="lede">Pull the highlighted balls, release, and try to land the rebound on the far side exactly inside the target window. Nail clean momentum transfers, build a streak, and see how many precise shots you can string together.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel stage">
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Round</div>
+          <div class="stat-value" id="roundValue">1</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="scoreValue">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Streak</div>
+          <div class="stat-value" id="streakValue">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Best</div>
+          <div class="stat-value" id="bestValue">0</div>
+        </div>
+      </div>
+
+      <div class="canvas-shell">
+        <canvas id="gameCanvas" width="920" height="560" tabindex="0" aria-label="Interactive Newton's Cradle game">Newton's Cradle requires canvas support. Drag the highlighted balls or focus the game and use Right or Up to pull farther, Left or Down to ease off, then press Space or Enter to release.</canvas>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-copy">
+          <strong id="statusTitle">Line up your release</strong>
+          <span id="statusText">Grab the glowing balls on the left, pull them back, and release when the angle feels right.</span>
+        </div>
+        <div class="button-row">
+          <button id="nextRoundBtn" class="primary" disabled>Next Round</button>
+          <button id="retryBtn" class="secondary">Retry Round</button>
+          <button id="resetBtn" class="warn">Reset Run</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel sidebar">
+      <section class="card">
+        <h2>Objective</h2>
+        <div class="objective">
+          <div class="target" id="objectiveValue">Launch 1 ball to 24°</div>
+          <div class="subtle" id="objectiveText">Score on the first rebound apex on the right side.</div>
+        </div>
+        <div class="meter" aria-hidden="true">
+          <div class="meter-fill" id="accuracyFill"></div>
+        </div>
+        <div class="legend">
+          <span id="resultLabel">Waiting for release</span>
+          <span id="deltaLabel">±0°</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Controls</h3>
+        <ul>
+          <li>Drag the highlighted group on the left to set the release angle.</li>
+          <li>Keyboard: focus the cradle, use Right or Up to pull farther, Left or Down to ease off, then press Space or Enter to release.</li>
+          <li>Release to send the same number of balls swinging out on the right.</li>
+          <li>Perfect rebounds boost your streak and earn bigger score multipliers.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h3>Scoring</h3>
+        <ul>
+          <li><strong>Perfect</strong>: within 2° of target.</li>
+          <li><strong>Great</strong>: within 5° of target.</li>
+          <li><strong>Good</strong>: within 9° of target.</li>
+          <li>Misses break the streak, but you can retry the same round.</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h3>Physics note</h3>
+        <p>This is a stylized cradle: momentum transfer and damping are tuned to feel clean and readable instead of perfectly simulating every collision.</p>
+      </section>
+    </aside>
+  </main>
+
+  <p class="footer-note">One self-contained HTML file. No assets, no libraries, no setup.</p>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const canvasShell = document.querySelector('.canvas-shell');
+const ctx = canvas ? canvas.getContext('2d') : null;
+
+const roundValue = document.getElementById('roundValue');
+const scoreValue = document.getElementById('scoreValue');
+const streakValue = document.getElementById('streakValue');
+const bestValue = document.getElementById('bestValue');
+const objectiveValue = document.getElementById('objectiveValue');
+const objectiveText = document.getElementById('objectiveText');
+const accuracyFill = document.getElementById('accuracyFill');
+const resultLabel = document.getElementById('resultLabel');
+const deltaLabel = document.getElementById('deltaLabel');
+const statusTitle = document.getElementById('statusTitle');
+const statusText = document.getElementById('statusText');
+const nextRoundBtn = document.getElementById('nextRoundBtn');
+const retryBtn = document.getElementById('retryBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+const BALL_COUNT = 5;
+const BASE_SPACING = 76;
+const MIN_RELEASE = 8;
+const MAX_RELEASE = 62;
+const STORAGE_KEY = 'newtonsCradleBestScore';
+
+function loadBestScore() {
+  try {
+    return Number(localStorage.getItem(STORAGE_KEY) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function saveBestScore(value) {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(value));
+  } catch {}
+}
+
+const game = {
+  round: 1,
+  score: 0,
+  streak: 0,
+  best: loadBestScore(),
+  requiredCount: 1,
+  targetAngle: 24,
+  previewAngle: 0,
+  measuredAngle: 0,
+  result: null,
+  dragging: false,
+  phase: 'aim',
+  animation: null
+};
+
+let pointerId = null;
+let lastTime = performance.now();
+let metrics = null;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * t) - 1) / 2;
+}
+
+function formatNumber(value) {
+  return value.toLocaleString();
+}
+
+function computeMetrics() {
+  const width = canvas.clientWidth || canvas.width;
+  const scale = width / canvas.width;
+  const topY = 112;
+  const stringLength = 250;
+  const radius = 23;
+  const spacing = BASE_SPACING;
+  const centerX = canvas.width / 2;
+  const left = centerX - ((BALL_COUNT - 1) * spacing) / 2;
+  const anchors = Array.from({ length: BALL_COUNT }, (_, index) => left + index * spacing);
+  return { scale, topY, stringLength, radius, spacing, anchors };
+}
+
+function makeRoundTarget(round) {
+  const pool = round < 4 ? [1, 1, 2] : round < 8 ? [1, 2, 2, 3] : [1, 2, 3];
+  const requiredCount = pool[Math.floor(Math.random() * pool.length)];
+  const minTarget = 18 + requiredCount * 2;
+  const maxTarget = 50 - requiredCount;
+  const targetAngle = Math.round((minTarget + Math.random() * (maxTarget - minTarget)) / 2) * 2;
+  return { requiredCount, targetAngle };
+}
+
+function clearPointerState() {
+  game.dragging = false;
+  if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) {
+    canvas.releasePointerCapture(pointerId);
+  }
+  pointerId = null;
+}
+
+function startRound(preserveScore = true) {
+  clearPointerState();
+  if (!preserveScore) {
+    game.score = 0;
+    game.streak = 0;
+    game.round = 1;
+  }
+  const target = makeRoundTarget(game.round);
+  game.requiredCount = target.requiredCount;
+  game.targetAngle = target.targetAngle;
+  game.previewAngle = 0;
+  game.measuredAngle = 0;
+  game.result = null;
+  game.phase = 'aim';
+  game.animation = null;
+  updateUI();
+}
+
+function retryRound() {
+  clearPointerState();
+  game.previewAngle = 0;
+  game.measuredAngle = 0;
+  game.result = null;
+  game.phase = 'aim';
+  game.animation = null;
+  updateUI();
+}
+
+function updateBest() {
+  if (game.score > game.best) {
+    game.best = game.score;
+    saveBestScore(game.best);
+  }
+}
+
+function updateUI() {
+  roundValue.textContent = String(game.round);
+  scoreValue.textContent = formatNumber(game.score);
+  streakValue.textContent = String(game.streak);
+  bestValue.textContent = formatNumber(game.best);
+  objectiveValue.textContent = `Launch ${game.requiredCount} ball${game.requiredCount > 1 ? 's' : ''} to ${game.targetAngle}°`;
+  if (game.phase === 'roundOver') {
+    objectiveText.textContent = game.result && game.result.points === 0
+      ? 'Missed the target. Retry this round or reset the run.'
+      : 'Round complete. Advance when you are ready for a new target.';
+  } else {
+    objectiveText.textContent = 'Score on the first rebound apex on the right side.';
+  }
+
+  if (!game.result) {
+    accuracyFill.style.width = '0%';
+    resultLabel.textContent = game.phase === 'animating' ? 'Measuring rebound...' : 'Waiting for release';
+    deltaLabel.textContent = '±0°';
+  } else {
+    const accuracy = clamp(100 - game.result.diff * 10, 6, 100);
+    accuracyFill.style.width = `${accuracy}%`;
+    resultLabel.textContent = `${game.result.label} · ${game.result.points > 0 ? '+' : ''}${game.result.points}`;
+    deltaLabel.textContent = `±${game.result.diff.toFixed(1)}°`;
+  }
+
+  if (game.phase === 'aim') {
+    statusTitle.textContent = 'Line up your release';
+    statusText.textContent = `Pull the ${game.requiredCount} glowing ball${game.requiredCount > 1 ? 's' : ''} on the left and try to hit ${game.targetAngle}° on the first right-side rebound.`;
+  } else if (game.phase === 'animating') {
+    statusTitle.textContent = 'Momentum in motion';
+    statusText.textContent = 'Watch the first rebound on the right. That apex decides the round.';
+  } else {
+    statusTitle.textContent = game.result ? game.result.label : 'Round complete';
+    statusText.textContent = game.result
+      ? `${game.result.message} Measured rebound: ${game.measuredAngle.toFixed(1)}°.`
+      : 'Advance when you are ready for the next target.';
+  }
+
+  nextRoundBtn.disabled = game.phase !== 'roundOver';
+}
+
+function getAngles() {
+  const angles = new Array(BALL_COUNT).fill(0);
+  if (game.phase === 'aim' && game.previewAngle > 0) {
+    for (let i = 0; i < game.requiredCount; i += 1) {
+      angles[i] = -game.previewAngle;
+    }
+    return angles;
+  }
+
+  if (game.animation) {
+    const angle = game.animation.side === 'left' ? -game.animation.currentAngle : game.animation.currentAngle;
+    if (game.animation.side === 'left') {
+      for (let i = 0; i < game.requiredCount; i += 1) {
+        angles[i] = angle;
+      }
+    } else {
+      for (let i = BALL_COUNT - game.requiredCount; i < BALL_COUNT; i += 1) {
+        angles[i] = angle;
+      }
+    }
+  }
+  return angles;
+}
+
+function isBallHighlighted(index) {
+  if (game.phase === 'aim') {
+    return index < game.requiredCount;
+  }
+  if (!game.animation) {
+    return false;
+  }
+  if (game.animation.side === 'left') {
+    return index < game.requiredCount;
+  }
+  return index >= BALL_COUNT - game.requiredCount;
+}
+
+function draw() {
+  if (!ctx) {
+    return;
+  }
+  metrics = computeMetrics();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const { topY, stringLength, radius, anchors } = metrics;
+  const frameTop = topY - 34;
+  const frameBottom = topY + stringLength + 70;
+  const leftEdge = anchors[0] - 72;
+  const rightEdge = anchors[anchors.length - 1] + 72;
+
+  const grad = ctx.createLinearGradient(0, frameTop, 0, frameBottom);
+  grad.addColorStop(0, 'rgba(8, 18, 34, 0.82)');
+  grad.addColorStop(1, 'rgba(3, 9, 17, 0.96)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = 'rgba(103, 232, 249, 0.05)';
+  ctx.fillRect(leftEdge - 28, frameTop + 18, rightEdge - leftEdge + 56, frameBottom - frameTop - 60);
+
+  ctx.strokeStyle = 'rgba(197, 212, 229, 0.35)';
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(leftEdge, frameTop + 20);
+  ctx.lineTo(rightEdge, frameTop + 20);
+  ctx.moveTo(leftEdge + 16, frameTop + 20);
+  ctx.lineTo(leftEdge + 16, frameBottom);
+  ctx.moveTo(rightEdge - 16, frameTop + 20);
+  ctx.lineTo(rightEdge - 16, frameBottom);
+  ctx.stroke();
+
+  drawTargetGuide();
+
+  const angles = getAngles();
+  const bobs = anchors.map((anchorX, index) => {
+    const radians = angles[index] * Math.PI / 180;
+    const bobX = anchorX + Math.sin(radians) * stringLength;
+    const bobY = topY + Math.cos(radians) * stringLength;
+    return { anchorX, bobX, bobY, angle: angles[index], highlighted: isBallHighlighted(index) };
+  });
+
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.82)';
+  ctx.lineWidth = 3;
+  bobs.forEach(({ anchorX, bobX, bobY }) => {
+    ctx.beginPath();
+    ctx.moveTo(anchorX, topY);
+    ctx.lineTo(bobX, bobY);
+    ctx.stroke();
+  });
+
+  for (let i = 0; i < anchors.length; i += 1) {
+    const anchorX = anchors[i];
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.55)';
+    ctx.beginPath();
+    ctx.arc(anchorX, topY, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  bobs.forEach((bob, index) => drawBall(bob, index));
+
+  if (game.phase === 'aim') {
+    const label = game.previewAngle > 0 ? `${game.previewAngle.toFixed(1)}° release` : 'drag to aim';
+    ctx.fillStyle = 'rgba(236, 244, 255, 0.92)';
+    ctx.font = '700 20px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, canvas.width / 2, frameBottom + 32);
+  }
+}
+
+function drawTargetGuide() {
+  const { topY, stringLength, anchors } = metrics;
+  const startIndex = BALL_COUNT - game.requiredCount;
+  const endIndex = BALL_COUNT - 1;
+  const anchorX = (anchors[startIndex] + anchors[endIndex]) / 2;
+  const centerY = topY;
+  const outerRadius = stringLength + 6;
+  const innerRadius = stringLength - 22;
+  const targetStart = (-90 + (game.targetAngle - 4)) * Math.PI / 180;
+  const targetEnd = (-90 + (game.targetAngle + 4)) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(anchorX, centerY);
+  ctx.beginPath();
+  ctx.arc(0, 0, outerRadius, targetStart, targetEnd, false);
+  ctx.arc(0, 0, innerRadius, targetEnd, targetStart, true);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(250, 204, 21, 0.76)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.95)';
+  ctx.font = '700 18px Inter, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(`target ${game.targetAngle}°`, canvas.width - 34, 50);
+}
+
+function drawBall(bob, index) {
+  const { radius } = metrics;
+  const gradient = ctx.createRadialGradient(bob.bobX - radius * 0.35, bob.bobY - radius * 0.4, radius * 0.18, bob.bobX, bob.bobY, radius);
+  const isActive = bob.highlighted;
+  gradient.addColorStop(0, isActive ? '#d9fdff' : '#eef7ff');
+  gradient.addColorStop(0.45, isActive ? '#7dd3fc' : '#cbd5e1');
+  gradient.addColorStop(1, isActive ? '#0f3f63' : '#415168');
+
+  ctx.save();
+  if (isActive) {
+    ctx.shadowColor = 'rgba(103, 232, 249, 0.45)';
+    ctx.shadowBlur = game.dragging ? 26 : 18;
+  }
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(bob.bobX, bob.bobY, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(bob.bobX, bob.bobY, radius, 0.3, 2.35);
+  ctx.stroke();
+}
+
+function pointToCanvas(event) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY
+  };
+}
+
+function ballUnderPointer(point) {
+  const { topY, stringLength, radius, anchors } = metrics || computeMetrics();
+  const angles = getAngles();
+  for (let i = 0; i < game.requiredCount; i += 1) {
+    const radians = angles[i] * Math.PI / 180;
+    const bobX = anchors[i] + Math.sin(radians) * stringLength;
+    const bobY = topY + Math.cos(radians) * stringLength;
+    const dx = point.x - bobX;
+    const dy = point.y - bobY;
+    if ((dx * dx) + (dy * dy) <= (radius + 14) * (radius + 14)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function angleFromPointer(point) {
+  const { topY, anchors } = metrics || computeMetrics();
+  const groupCenterX = (anchors[0] + anchors[game.requiredCount - 1]) / 2;
+  const dx = groupCenterX - point.x;
+  const dy = point.y - topY;
+  const radians = Math.atan2(dx, dy);
+  const degrees = radians * 180 / Math.PI;
+  if (degrees < MIN_RELEASE) {
+    return 0;
+  }
+  return clamp(degrees, MIN_RELEASE, MAX_RELEASE);
+}
+
+function beginDrag(event) {
+  if (game.phase !== 'aim') {
+    return;
+  }
+  const point = pointToCanvas(event);
+  if (!ballUnderPointer(point)) {
+    return;
+  }
+  pointerId = event.pointerId;
+  event.preventDefault();
+  game.dragging = true;
+  game.previewAngle = angleFromPointer(point);
+  canvas.setPointerCapture(pointerId);
+  updateUI();
+}
+
+function moveDrag(event) {
+  if (!game.dragging || event.pointerId !== pointerId) {
+    return;
+  }
+  const point = pointToCanvas(event);
+  game.previewAngle = angleFromPointer(point);
+}
+
+function endDrag(event) {
+  if (!game.dragging || event.pointerId !== pointerId) {
+    return;
+  }
+  clearPointerState();
+  if (game.previewAngle >= MIN_RELEASE) {
+    launch(game.previewAngle);
+  } else {
+    game.previewAngle = 0;
+    updateUI();
+  }
+}
+
+function handleLostPointerCapture(event) {
+  if (pointerId === null || event.pointerId !== pointerId) {
+    return;
+  }
+  clearPointerState();
+  if (game.phase === 'aim') {
+    game.previewAngle = 0;
+    updateUI();
+  }
+}
+
+function nudgePreview(delta) {
+  const next = clamp((game.previewAngle || MIN_RELEASE) + delta, MIN_RELEASE, MAX_RELEASE);
+  game.previewAngle = next;
+  updateUI();
+}
+
+function handleCanvasKeydown(event) {
+  if (game.phase === 'aim') {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      nudgePreview(2);
+      return;
+    }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!game.previewAngle || game.previewAngle <= MIN_RELEASE) {
+        game.previewAngle = 0;
+      } else {
+        game.previewAngle = clamp(game.previewAngle - 2, MIN_RELEASE, MAX_RELEASE);
+      }
+      updateUI();
+      return;
+    }
+    if (event.key === ' ' || event.key === 'Spacebar' || event.key === 'Enter') {
+      event.preventDefault();
+      if (game.previewAngle >= MIN_RELEASE) {
+        launch(game.previewAngle);
+      }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      game.previewAngle = 0;
+      updateUI();
+      return;
+    }
+  }
+
+  if (event.key === 'r' || event.key === 'R') {
+    event.preventDefault();
+    retryRound();
+    return;
+  }
+
+  if ((event.key === 'n' || event.key === 'N') && game.phase === 'roundOver') {
+    event.preventDefault();
+    advanceRound();
+  }
+}
+
+function launch(angle) {
+  game.phase = 'animating';
+  game.measuredAngle = 0;
+  game.result = null;
+  game.animation = {
+    side: 'left',
+    mode: 'toCenter',
+    amplitude: angle,
+    currentAngle: angle,
+    duration: 0.42,
+    progress: 0,
+    apexes: 0,
+    measured: false
+  };
+  updateUI();
+}
+
+function advanceRound() {
+  if (game.phase !== 'roundOver') {
+    return;
+  }
+  game.round += 1;
+  startRound();
+}
+
+function resetRun() {
+  game.round = 1;
+  game.score = 0;
+  game.streak = 0;
+  startRound();
+}
+
+function transferAmplitude(amplitude, nextSide, apexes) {
+  if (nextSide === 'right' && apexes === 0) {
+    return amplitude;
+  }
+  const baseRetention = nextSide === 'right' ? 0.965 : 0.935;
+  const countPenalty = (game.requiredCount - 1) * 0.012;
+  const cyclePenalty = apexes * 0.01;
+  const retention = clamp(baseRetention - countPenalty - cyclePenalty, 0.72, 0.98);
+  return amplitude * retention;
+}
+
+function evaluateShot(angle) {
+  game.measuredAngle = angle;
+  const diff = Math.abs(game.targetAngle - angle);
+  let label = 'Miss';
+  let points = 0;
+  let message = 'Close, but outside the scoring windows.';
+
+  if (diff <= 2) {
+    label = 'Perfect';
+    points = 320 + game.requiredCount * 70 + game.streak * 35;
+    message = 'A laser-clean transfer. The rebound landed right on target.';
+    game.streak += 1;
+  } else if (diff <= 5) {
+    label = 'Great';
+    points = 190 + game.requiredCount * 55 + game.streak * 20;
+    message = 'Strong timing. Just a whisper off the center of the target.';
+    game.streak += 1;
+  } else if (diff <= 9) {
+    label = 'Good';
+    points = 110 + game.requiredCount * 40;
+    message = 'Solid hit. You clipped the edge of the scoring band.';
+    game.streak += 1;
+  } else {
+    game.streak = 0;
+  }
+
+  game.score += points;
+  updateBest();
+  game.result = { label, diff, points, message };
+  updateUI();
+}
+
+function finishRound() {
+  game.phase = 'roundOver';
+  game.animation = null;
+  updateBest();
+  updateUI();
+}
+
+function tickAnimation(dt) {
+  const anim = game.animation;
+  if (!anim) {
+    return;
+  }
+
+  anim.progress += dt / anim.duration;
+  const t = clamp(anim.progress, 0, 1);
+  const eased = easeInOutSine(t);
+
+  if (anim.mode === 'toCenter') {
+    anim.currentAngle = lerp(anim.amplitude, 0, eased);
+  } else {
+    anim.currentAngle = lerp(0, anim.amplitude, eased);
+  }
+
+  if (anim.progress < 1) {
+    return;
+  }
+
+  if (anim.mode === 'toCenter') {
+    const nextSide = anim.side === 'left' ? 'right' : 'left';
+    anim.mode = 'toApex';
+    anim.side = nextSide;
+    anim.amplitude = transferAmplitude(anim.amplitude, nextSide, anim.apexes);
+    anim.progress = 0;
+    anim.duration = 0.38;
+    return;
+  }
+
+  anim.apexes += 1;
+  if (!anim.measured && anim.side === 'right') {
+    anim.measured = true;
+    evaluateShot(anim.amplitude);
+  }
+
+  if (anim.apexes >= 8 || anim.amplitude < 6) {
+    finishRound();
+    return;
+  }
+
+  anim.mode = 'toCenter';
+  anim.progress = 0;
+  anim.duration = 0.34;
+}
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  tickAnimation(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+nextRoundBtn.addEventListener('click', advanceRound);
+
+retryBtn.addEventListener('click', retryRound);
+
+resetBtn.addEventListener('click', resetRun);
+
+if (canvas && ctx) {
+  canvas.addEventListener('pointerdown', beginDrag);
+  canvas.addEventListener('pointermove', moveDrag);
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', handleLostPointerCapture);
+  canvas.addEventListener('keydown', handleCanvasKeydown);
+
+  window.addEventListener('resize', () => {
+    metrics = computeMetrics();
+  });
+
+  bestValue.textContent = formatNumber(game.best);
+  startRound();
+  metrics = computeMetrics();
+  requestAnimationFrame(frame);
+} else {
+  if (canvasShell) {
+    const fallback = document.createElement('div');
+    fallback.className = 'canvas-fallback';
+    fallback.textContent = canvas && canvas.textContent.trim()
+      ? canvas.textContent.trim()
+      : 'Newton\'s Cradle needs HTML canvas support. Try a modern browser to use the interactive game.';
+    if (canvas) {
+      canvas.replaceWith(fallback);
+    } else {
+      canvasShell.appendChild(fallback);
+    }
+  }
+  statusTitle.textContent = 'Canvas unavailable';
+  statusText.textContent = 'Your browser does not support the interactive drawing surface for this game.';
+  roundValue.textContent = '—';
+  scoreValue.textContent = '—';
+  streakValue.textContent = '—';
+  bestValue.textContent = '—';
+  objectiveValue.textContent = 'Canvas required';
+  objectiveText.textContent = 'Canvas support is required for Newton\'s Cradle.';
+  resultLabel.textContent = 'Unavailable';
+  deltaLabel.textContent = '—';
+  accuracyFill.style.width = '0%';
+  retryBtn.disabled = true;
+  resetBtn.disabled = true;
+  nextRoundBtn.disabled = true;
+}
+</script>
+</body>
+</html>
