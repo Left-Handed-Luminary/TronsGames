@@ -315,7 +315,7 @@ ul {
         <h3>Controls</h3>
         <ul>
           <li>Drag the highlighted group on the left to set the release angle.</li>
-          <li>Keyboard: focus the cradle, use Left/Right or Up/Down to aim, then press Space or Enter to release.</li>
+          <li>Keyboard: focus the cradle, use Right or Up to pull farther, Left or Down to ease off, then press Space or Enter to release.</li>
           <li>Release to send the same number of balls swinging out on the right.</li>
           <li>Perfect rebounds boost your streak and earn bigger score multipliers.</li>
         </ul>
@@ -712,6 +712,7 @@ function beginDrag(event) {
     return;
   }
   pointerId = event.pointerId;
+  event.preventDefault();
   game.dragging = true;
   game.previewAngle = angleFromPointer(point);
   canvas.setPointerCapture(pointerId);
@@ -747,12 +748,12 @@ function nudgePreview(delta) {
 
 function handleCanvasKeydown(event) {
   if (game.phase === 'aim') {
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
       event.preventDefault();
       nudgePreview(2);
       return;
     }
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
       event.preventDefault();
       if (!game.previewAngle || game.previewAngle <= MIN_RELEASE) {
         game.previewAngle = 0;
