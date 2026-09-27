@@ -437,7 +437,16 @@ function makeRoundTarget(round) {
   return { requiredCount, targetAngle };
 }
 
+function clearPointerState() {
+  game.dragging = false;
+  if (pointerId !== null && canvas.hasPointerCapture(pointerId)) {
+    canvas.releasePointerCapture(pointerId);
+  }
+  pointerId = null;
+}
+
 function startRound(preserveScore = true) {
+  clearPointerState();
   if (!preserveScore) {
     game.score = 0;
     game.streak = 0;
@@ -449,21 +458,18 @@ function startRound(preserveScore = true) {
   game.previewAngle = 0;
   game.measuredAngle = 0;
   game.result = null;
-  game.dragging = false;
   game.phase = 'aim';
   game.animation = null;
-  pointerId = null;
   updateUI();
 }
 
 function retryRound() {
+  clearPointerState();
   game.previewAngle = 0;
   game.measuredAngle = 0;
   game.result = null;
-  game.dragging = false;
   game.phase = 'aim';
   game.animation = null;
-  pointerId = null;
   updateUI();
 }
 
@@ -724,11 +730,7 @@ function endDrag(event) {
   if (!game.dragging || event.pointerId !== pointerId) {
     return;
   }
-  game.dragging = false;
-  if (canvas.hasPointerCapture(pointerId)) {
-    canvas.releasePointerCapture(pointerId);
-  }
-  pointerId = null;
+  clearPointerState();
   if (game.previewAngle >= MIN_RELEASE) {
     launch(game.previewAngle);
   } else {
