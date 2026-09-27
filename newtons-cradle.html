@@ -449,7 +449,7 @@ function makeRoundTarget(round) {
 
 function clearPointerState() {
   game.dragging = false;
-  if (pointerId !== null && canvas.hasPointerCapture(pointerId)) {
+  if (canvas && pointerId !== null && canvas.hasPointerCapture(pointerId)) {
     canvas.releasePointerCapture(pointerId);
   }
   pointerId = null;
@@ -855,6 +855,9 @@ function resetRun() {
 }
 
 function transferAmplitude(amplitude, nextSide, apexes) {
+  if (nextSide === 'right' && apexes === 0) {
+    return amplitude;
+  }
   const baseRetention = nextSide === 'right' ? 0.965 : 0.935;
   const countPenalty = (game.requiredCount - 1) * 0.012;
   const cyclePenalty = apexes * 0.01;
