@@ -542,6 +542,9 @@ function getAngles() {
 }
 
 function draw() {
+  if (!ctx) {
+    return;
+  }
   metrics = computeMetrics();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -929,20 +932,29 @@ retryBtn.addEventListener('click', retryRound);
 
 resetBtn.addEventListener('click', resetRun);
 
-canvas.addEventListener('pointerdown', beginDrag);
-canvas.addEventListener('pointermove', moveDrag);
-canvas.addEventListener('pointerup', endDrag);
-canvas.addEventListener('pointercancel', endDrag);
-canvas.addEventListener('keydown', handleCanvasKeydown);
+if (ctx) {
+  canvas.addEventListener('pointerdown', beginDrag);
+  canvas.addEventListener('pointermove', moveDrag);
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('keydown', handleCanvasKeydown);
 
-window.addEventListener('resize', () => {
+  window.addEventListener('resize', () => {
+    metrics = computeMetrics();
+  });
+
+  bestValue.textContent = formatNumber(game.best);
+  startRound();
   metrics = computeMetrics();
-});
-
-bestValue.textContent = formatNumber(game.best);
-startRound();
-metrics = computeMetrics();
-requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
+} else {
+  statusTitle.textContent = 'Canvas unavailable';
+  statusText.textContent = 'Your browser does not support the interactive drawing surface for this game.';
+  objectiveText.textContent = 'Canvas support is required for Newton\'s Cradle.';
+  retryBtn.disabled = true;
+  resetBtn.disabled = true;
+  nextRoundBtn.disabled = true;
+}
 </script>
 </body>
 </html>
