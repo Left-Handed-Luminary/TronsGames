@@ -438,6 +438,11 @@ function makeRoundTarget(round) {
 }
 
 function startRound(preserveScore = true) {
+  if (!preserveScore) {
+    game.score = 0;
+    game.streak = 0;
+    game.round = 1;
+  }
   const target = makeRoundTarget(game.round);
   game.requiredCount = target.requiredCount;
   game.targetAngle = target.targetAngle;
@@ -448,11 +453,6 @@ function startRound(preserveScore = true) {
   game.phase = 'aim';
   game.animation = null;
   pointerId = null;
-  if (!preserveScore) {
-    game.score = 0;
-    game.streak = 0;
-    game.round = 1;
-  }
   updateUI();
 }
 
@@ -805,6 +805,14 @@ function launch(angle) {
   updateUI();
 }
 
+function transferAmplitude(amplitude, nextSide, apexes) {
+  const baseRetention = nextSide === 'right' ? 0.965 : 0.935;
+  const countPenalty = (game.requiredCount - 1) * 0.012;
+  const cyclePenalty = apexes * 0.01;
+  const retention = clamp(baseRetention - countPenalty - cyclePenalty, 0.72, 0.98);
+  return amplitude * retention;
+}
+
 function evaluateShot(angle) {
   game.measuredAngle = angle;
   const diff = Math.abs(game.targetAngle - angle);
@@ -865,8 +873,10 @@ function tickAnimation(dt) {
   }
 
   if (anim.mode === 'toCenter') {
+    const nextSide = anim.side === 'left' ? 'right' : 'left';
     anim.mode = 'toApex';
-    anim.side = anim.side === 'left' ? 'right' : 'left';
+    anim.side = nextSide;
+    anim.amplitude = transferAmplitude(anim.amplitude, nextSide, anim.apexes);
     anim.progress = 0;
     anim.duration = 0.38;
     return;
@@ -877,8 +887,6 @@ function tickAnimation(dt) {
     anim.measured = true;
     evaluateShot(anim.amplitude);
   }
-
-  anim.amplitude *= 0.93;
 
   if (anim.apexes >= 8 || anim.amplitude < 6) {
     finishRound();
