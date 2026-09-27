@@ -376,10 +376,17 @@ const MIN_RELEASE = 8;
 const MAX_RELEASE = 62;
 const STORAGE_KEY = 'newtonsCradleBestScore';
 
+function normalizeBestScore(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
 function loadBestScore() {
   try {
     const value = Number(localStorage.getItem(STORAGE_KEY) || 0);
-    return Number.isFinite(value) ? value : 0;
+    return normalizeBestScore(value);
   } catch {
     return 0;
   }
@@ -387,7 +394,7 @@ function loadBestScore() {
 
 function saveBestScore(value) {
   try {
-    localStorage.setItem(STORAGE_KEY, String(value));
+    localStorage.setItem(STORAGE_KEY, String(normalizeBestScore(value)));
   } catch {}
 }
 
