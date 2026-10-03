@@ -33,6 +33,7 @@ The repository includes several one-page games and experiments, including:
 | `agalag.html` | Retro arcade shooter inspired by classic space shooters |
 | `asteroid-clone.html` | Asteroids-style browser game prototype |
 | `chromatic-drift.html` | Color and movement based arcade experiment |
+| `crystal-madness.html` | Isometric crystal-collecting marble adventure with three courses and touchscreen controls |
 | `cootie-catcher.html` | Interactive fortune-teller style game |
 | `davidic-lyre.html` | Music-inspired interactive experiment |
 | `defender-clone.html` | Defender-style arcade prototype |
