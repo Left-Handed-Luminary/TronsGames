@@ -8,6 +8,15 @@ https://left-handed-luminary.github.io/TronsGames/
 
 This repository contains a set of self-contained browser games. Each game was generated in one shot with Gemini as a single-page HTML file, then saved as an individual playable page. The goal was to test how far a modern AI coding assistant can go from prompt to playable prototype without a traditional multi-file project structure.
 
+# TronsGames
+
+AI-generated browser games and interactive experiments in HTML, CSS, and JavaScript, featuring arcade shooters and puzzles.
+
+**[Play the browser game collection](https://left-handed-luminary.github.io/TronsGames/)**
+
+Explore 15 games and interactive experiments, including Crystal Madness, Mega Minesweeper, Vector Maze, Newton's Cradle, and Davidic Lyre.
+
+This project explores rapid AI-assisted development with Gemini through individual playable HTML pages. Open the gallery to play, or browse the source to inspect the code. No build step required.
 ## About the Project
 
 TronsGames explores a simple idea:
