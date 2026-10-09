@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{margin:0}</style>
+</head>
+<body>
+<title>Bughouse Tutor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: a tournament table. Your board large on the left, the tutor's sheet beside it,
+   your partner's board smaller underneath the sheet. One column on a phone. */
+:root{
+  --bg:#e6eae1; --surface:#f6f8f2; --ink:#1b2420; --muted:#56655c; --line:#c5cebf;
+  --sq-light:#ebe9cf; --sq-dark:#5c8a59;            /* green-and-buff vinyl tournament board */
+  --accent:#c9620a; --accent-ink:#fff; --accent-soft:#f7e3cf;
+  --good:#256f45; --warn:#93600d; --bad:#a8322b;
+  --pw:#fbfbf4; --pw-edge:#1a1d1b; --pb:#151817; --pb-edge:#e9ecdf;
+  --sel:#f2c94c; --last:rgba(242,201,76,.55);
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --glyph:"Noto Sans Symbols 2","Segoe UI Symbol","Apple Symbols","DejaVu Sans",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#121815; --surface:#1a221e; --ink:#e7ece5; --muted:#94a399; --line:#2d3a33;
+  --sq-light:#cfcfb3; --sq-dark:#476f4c; --accent:#f08d35; --accent-ink:#1a120a; --accent-soft:#3a2a1a;
+  --good:#6cc48d; --warn:#e0b060; --bad:#ef7f76; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#121815; --surface:#1a221e; --ink:#e7ece5; --muted:#94a399; --line:#2d3a33;
+  --sq-light:#cfcfb3; --sq-dark:#476f4c; --accent:#f08d35; --accent-ink:#1a120a; --accent-soft:#3a2a1a;
+  --good:#6cc48d; --warn:#e0b060; --bad:#ef7f76; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.45 var(--body)}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:18px 40px;display:flex;flex-direction:column;gap:18px}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+h1{font:700 2.4rem/1 var(--display);letter-spacing:.01em;text-transform:uppercase;margin:0}
+h1 span{color:var(--accent)}
+.controls{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:3px}
+.label{font:600 .72rem/1.2 var(--body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+select,.btn{height:38px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);cursor:pointer}
+.btn{font-weight:600}
+.btn:hover:not(:disabled),select:hover{border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+.table{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:20px 28px;align-items:start}
+.mine{grid-row:1 / span 2}
+@media (max-width:820px){ .table{grid-template-columns:minmax(0,1fr)} .mine{grid-row:auto} }
+
+.seat{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:38px;flex-wrap:wrap}
+.who{font:600 1.05rem/1.1 var(--display);letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.who i{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--ink);display:inline-block}
+.who i.w{background:var(--pw)} .who i.b{background:var(--pb)}
+.who.turn::after{content:"to move";font:600 .68rem var(--body);letter-spacing:.08em;background:var(--accent);color:var(--accent-ink);padding:3px 7px;border-radius:99px}
+.reserve{display:flex;gap:4px}
+.chip{display:flex;align-items:center;gap:1px;height:36px;min-width:40px;padding:0 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font:600 .8rem var(--mono)}
+.chip .g{font:1.45rem/1 var(--glyph)}
+.chip.zero{opacity:.3}
+button.chip{cursor:pointer}
+button.chip:disabled{cursor:default}
+.chip.sel{background:var(--sel);border-color:var(--ink);color:#1b2420}
+.chip.hint{outline:3px solid var(--accent);outline-offset:1px}
+
+.board-box{position:relative;container-type:inline-size;margin-block:6px;max-width:560px}
+.small .board-box{max-width:340px}
+.board{display:grid;grid-template-columns:repeat(8,1fr);border:3px solid var(--ink);border-radius:3px;overflow:hidden}
+.sq{aspect-ratio:1;border:0;padding:0;margin:0;position:relative;display:grid;place-items:center;font:10.4cqw/1 var(--glyph);cursor:default;background:var(--sq-light)}
+.sq.d{background:var(--sq-dark)}
+.sq.play{cursor:pointer}
+.sq .w{color:var(--pw);-webkit-text-stroke:.07em var(--pw-edge);paint-order:stroke fill}
+.sq .b{color:var(--pb);-webkit-text-stroke:.035em var(--pb-edge);paint-order:stroke fill}
+.sq.last{box-shadow:inset 0 0 0 99px var(--last)}
+.sq.sel{box-shadow:inset 0 0 0 99px var(--sel)}
+.sq.check{box-shadow:inset 0 0 0 .5cqw var(--bad), inset 0 0 3cqw 1cqw var(--bad)}
+.sq.tgt::after{content:"";width:28%;height:28%;border-radius:50%;background:rgba(20,30,24,.42);position:absolute}
+.sq.tgt.occ::after{width:86%;height:86%;background:none;border:.7cqw solid rgba(20,30,24,.5)}
+.sq[data-f]::before{content:attr(data-f);position:absolute;right:3%;bottom:1%;font:600 2.3cqw var(--mono);color:#1b2420;opacity:.7}
+.sq small{position:absolute;left:3%;top:2%;font:600 2.3cqw var(--mono);color:#1b2420;opacity:.7}
+.arrows{position:absolute;inset:3px;pointer-events:none}
+.arrows line,.arrows circle{stroke:var(--accent);stroke-width:.17;stroke-linecap:round;fill:none;opacity:.92}
+.arrows polygon{fill:var(--accent);opacity:.92}
+.promo{position:absolute;inset:0;display:grid;place-items:center;background:rgba(18,24,21,.55)}
+.promo div{display:flex;gap:6px;background:var(--surface);padding:10px;border-radius:8px;flex-wrap:wrap;justify-content:center}
+.promo p{margin:0 0 4px;width:100%;text-align:center;font-weight:600}
+.promo button{width:56px;height:56px;font:2.2rem/1 var(--glyph);border:1px solid var(--line);border-radius:6px;background:var(--sq-light);color:#151817;cursor:pointer}
+
+.tutor{background:var(--surface);border:1px solid var(--line);border-top:5px solid var(--accent);border-radius:6px;padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.tutor h2{font:700 1.05rem/1 var(--display);letter-spacing:.1em;text-transform:uppercase;margin:0;color:var(--muted)}
+.result{font:700 1.5rem/1.15 var(--display);text-transform:uppercase;letter-spacing:.02em;margin:0;text-wrap:balance}
+.result.win{color:var(--good)} .result.loss{color:var(--bad)}
+.move{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+.move b{font:600 2.3rem/1 var(--mono);color:var(--accent)}
+.move span{font-weight:600;font-size:1.1rem}
+.why{margin:0;padding-left:1.15em;display:flex;flex-direction:column;gap:6px;max-width:62ch}
+.note{margin:0;color:var(--muted);max-width:62ch}
+.note b{color:var(--ink)}
+.ask{margin:0;padding:9px 12px;background:var(--accent-soft);border-radius:6px;max-width:62ch}
+.fb{margin:0;padding-left:12px;border-left:4px solid var(--muted);max-width:62ch}
+.fb.good{border-color:var(--good)} .fb.ok{border-color:var(--warn)} .fb.bad{border-color:var(--bad)}
+.fb b{font-family:var(--mono)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.feed{list-style:none;margin:0;padding:10px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px;font-size:.92rem;color:var(--muted)}
+.feed li:first-child{color:var(--ink)}
+.moves{font:500 .84rem/1.6 var(--mono);color:var(--muted);margin:6px 0 0;overflow-wrap:anywhere}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600}
+.rules{max-width:70ch} .rules li{margin-block:5px}
+.switch{display:flex;align-items:center;gap:8px;height:38px;cursor:pointer}
+.switch input{width:18px;height:18px;accent-color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){ .sq.last{transition:box-shadow .25s} }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Bughouse <span>Tutor</span></h1>
+    <div class="controls">
+      <label class="field"><span class="label">You play</span>
+        <select id="side"><option value="0">White</option><option value="1">Black</option></select></label>
+      <label class="field"><span class="label">Other three players</span>
+        <select id="level"><option value="0">Beginner</option><option value="1" selected>Club</option><option value="2">Strong</option></select></label>
+      <label class="switch"><input type="checkbox" id="auto" checked> Show the tutor's move every turn</label>
+      <button class="btn" id="back">Take back</button>
+      <button class="btn primary" id="new">New game</button>
+    </div>
+  </header>
+
+  <main class="table">
+    <section class="mine" aria-label="Your board">
+      <div class="seat" id="s0top"></div>
+      <div class="board-box"><div class="board" id="b0"></div><svg class="arrows" id="a0" viewBox="0 0 8 8"></svg><div class="promo" id="promo" hidden></div></div>
+      <div class="seat" id="s0bot"></div>
+      <p class="moves" id="log0"></p>
+    </section>
+
+    <aside class="tutor" id="tutor" aria-live="polite"></aside>
+
+    <section class="small" aria-label="Your partner's board">
+      <div class="seat" id="s1top"></div>
+      <div class="board-box"><div class="board" id="b1"></div></div>
+      <div class="seat" id="s1bot"></div>
+      <p class="moves" id="log1"></p>
+    </section>
+  </main>
+
+  <details class="rules">
+    <summary>How bughouse works, and the rules this page uses</summary>
+    <ul>
+      <li>Two boards, two teams of two. Partners sit side by side and play opposite colours.</li>
+      <li>Every piece you capture is handed to your partner. It goes into their reserve, shown beside their board.</li>
+      <li>On your turn you may drop a reserve piece on any empty square instead of moving. Tap the piece in your reserve, then the square.</li>
+      <li>Pawns may not be dropped on the 1st or 8th rank. A dropped piece may give check or checkmate, and may block a check.</li>
+      <li>A promoted pawn that gets captured goes back to being a pawn.</li>
+      <li>Checkmate on either board ends the match for both boards.</li>
+      <li>There is no clock here so you have time to read the tutor. The two boards take turns, one move each. At a real tournament both boards run at once on clocks.</li>
+      <li>Here it is checkmate when you have no legal move with the pieces you hold now. Some tournaments let a player wait for a partner's piece to block; check your event's rules, and whether drop mates are allowed.</li>
+    </ul>
+  </details>
+</div>
+
+<script>
+/* Bughouse engine: rules, move generation, search, and the tutor's explanations.
+ * Pure logic, no DOM. Runs in the browser (global `Bughouse`) and in Node (module.exports).
+ *
+ * Board: 0x88 mailbox. sq = rank*16 + file, a1 = 0, h8 = 0x77.
+ * Piece: type (1..6) | colour<<3 | PROMO(16) when the piece is a promoted pawn.
+ */
+(function (root) {
+  'use strict';
+  const P = 1, N = 2, B = 3, R = 4, Q = 5, K = 6, WHITE = 0, BLACK = 1, PROMO = 16;
+  const MATE = 100000, INF = 1e9;
+  const VAL = [0, 100, 290, 300, 430, 800, 10000];
+  const HAND = [0, 130, 310, 300, 420, 820, 0];      // a piece in hand is worth a little more
+  const KN = [33, 31, 18, 14, -33, -31, -18, -14];
+  const KG = [1, -1, 16, -16, 17, 15, -17, -15];
+  const BI = [17, 15, -17, -15], RO = [1, -1, 16, -16];
+  const LET = ['', 'P', 'N', 'B', 'R', 'Q', 'K'];
+  const NAME = ['', 'pawn', 'knight', 'bishop', 'rook', 'queen', 'king'];
+  const file = s => s & 7, rank = s => s >> 4;
+  const sqName = s => 'abcdefgh'[s & 7] + ((s >> 4) + 1);
+  const sqOf = n => (n.charCodeAt(1) - 49) * 16 + (n.charCodeAt(0) - 97);
+  const dist = (a, b) => Math.max(Math.abs((a & 7) - (b & 7)), Math.abs((a >> 4) - (b >> 4)));
+
+  // Castling-rights keep-masks: bit1 WK, bit2 WQ, bit4 BK, bit8 BQ.
+  const CM = new Array(128).fill(15);
+  CM[0] = 13; CM[7] = 14; CM[4] = 12; CM[0x70] = 7; CM[0x77] = 11; CM[0x74] = 3;
+
+  // Piece-square bonuses, built once.
+  const PST = [0, 1].map(c => [0, 1, 2, 3, 4, 5, 6].map(t => {
+    const a = new Array(128).fill(0);
+    for (let s = 0; s < 128; s++) {
+      if (s & 0x88) continue;
+      const f = s & 7, r = s >> 4, rr = c ? 7 - r : r;
+      const cd = Math.max(Math.abs(2 * f - 7), Math.abs(2 * r - 7)) >> 1;   // 0 centre .. 3 edge
+      if (t === P) a[s] = 4 * (rr - 1) + (f === 3 || f === 4 ? 12 : f === 2 || f === 5 ? 4 : 0) + (rr >= 5 ? 30 : 0);
+      else if (t === N) a[s] = 20 - 8 * cd - (rr === 0 ? 12 : 0);
+      else if (t === B) a[s] = 8 - 3 * cd - (rr === 0 ? 12 : 0);
+    }
+    return a;
+  }));
+
+  function emptyPos() {
+    return { board: new Array(128).fill(0), side: WHITE, castle: 0, ep: -1,
+             hand: [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]], kings: [-1, -1], undo: [] };
+  }
+  /** FEN with an optional crazyhouse-style reserve, e.g. "…/RNBQKBNR[Np] w KQkq -". */
+  function fromFen(fen) {
+    const pos = emptyPos(), parts = fen.trim().split(/\s+/);
+    let brd = parts[0];
+    const h = brd.match(/\[(.*)\]/);
+    if (h) {
+      brd = brd.replace(/\[.*\]/, '');
+      for (const ch of h[1]) {
+        const t = 'PNBRQ'.indexOf(ch.toUpperCase()) + 1;
+        if (t) pos.hand[ch === ch.toUpperCase() ? WHITE : BLACK][t]++;
+      }
+    }
+    brd.split('/').forEach((row, i) => {
+      let f = 0; const r = 7 - i;
+      for (const ch of row) {
+        if (ch >= '1' && ch <= '8') { f += +ch; continue; }
+        const t = 'PNBRQK'.indexOf(ch.toUpperCase()) + 1, c = ch === ch.toUpperCase() ? WHITE : BLACK;
+        pos.board[r * 16 + f] = t | (c << 3);
+        if (t === K) pos.kings[c] = r * 16 + f;
+        f++;
+      }
+    });
+    pos.side = parts[1] === 'b' ? BLACK : WHITE;
+    const cs = parts[2] || '-';
+    pos.castle = (cs.includes('K') ? 1 : 0) | (cs.includes('Q') ? 2 : 0) | (cs.includes('k') ? 4 : 0) | (cs.includes('q') ? 8 : 0);
+    pos.ep = parts[3] && parts[3] !== '-' ? sqOf(parts[3]) : -1;
+    return pos;
+  }
+  const startPos = () => fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -');
+  function clonePos(p) {
+    return { board: p.board.slice(), side: p.side, castle: p.castle, ep: p.ep,
+             hand: [p.hand[0].slice(), p.hand[1].slice()], kings: p.kings.slice(), undo: [] };
+  }
+
+  /** Is `sq` attacked by any piece of colour `by`? */
+  function attacked(pos, sq, by) {
+    const b = pos.board; let s, i, p;
+    const pw = P | (by << 3), kn = N | (by << 3), kg = K | (by << 3);
+    if (by === WHITE) {
+      s = sq - 15; if (!(s & 0x88) && (b[s] & 15) === pw) return true;
+      s = sq - 17; if (!(s & 0x88) && (b[s] & 15) === pw) return true;
+    } else {
+      s = sq + 15; if (!(s & 0x88) && (b[s] & 15) === pw) return true;
+      s = sq + 17; if (!(s & 0x88) && (b[s] & 15) === pw) return true;
+    }
+    for (i = 0; i < 8; i++) {
+      s = sq + KN[i]; if (!(s & 0x88) && (b[s] & 15) === kn) return true;
+      s = sq + KG[i]; if (!(s & 0x88) && (b[s] & 15) === kg) return true;
+    }
+    const bi = B | (by << 3), ro = R | (by << 3), qu = Q | (by << 3);
+    for (i = 0; i < 4; i++) {
+      for (s = sq + BI[i]; !(s & 0x88); s += BI[i]) { p = b[s] & 15; if (p) { if (p === bi || p === qu) return true; break; } }
+      for (s = sq + RO[i]; !(s & 0x88); s += RO[i]) { p = b[s] & 15; if (p) { if (p === ro || p === qu) return true; break; } }
+    }
+    return false;
+  }
+  const inCheck = pos => attacked(pos, pos.kings[pos.side], pos.side ^ 1);
+
+  /** Pseudo-legal moves. mode 0: everything; 1: only "interesting" drops (used deep in the search);
+   *  2: captures and promotions only (quiescence). */
+  function gen(pos, mode) {
+    const b = pos.board, us = pos.side, them = us ^ 1, out = [];
+    const add = (from, to, piece, cap, promo, flag) => out.push({ from, to, piece, cap, promo, flag, drop: 0 });
+    const dir = us ? -16 : 16, startR = us ? 6 : 1, promoR = us ? 0 : 7;
+    const empties = [];
+    for (let sq = 0; sq < 120; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      const p = b[sq];
+      if (!p) { empties.push(sq); continue; }
+      if (((p >> 3) & 1) !== us) continue;
+      const t = p & 7;
+      if (t === P) {
+        let to = sq + dir;
+        if (!(to & 0x88) && !b[to]) {
+          if ((to >> 4) === promoR) { for (const pr of [Q, N, R, B]) add(sq, to, P, 0, pr, 0); }
+          else if (mode !== 2) {
+            add(sq, to, P, 0, 0, 0);
+            if ((sq >> 4) === startR && !b[to + dir]) add(sq, to + dir, P, 0, 0, 4);
+          }
+        }
+        for (const d of [dir - 1, dir + 1]) {
+          to = sq + d; if (to & 0x88) continue;
+          const c = b[to];
+          if (c && ((c >> 3) & 1) === them) {
+            if ((to >> 4) === promoR) { for (const pr of [Q, N, R, B]) add(sq, to, P, c, pr, 0); }
+            else add(sq, to, P, c, 0, 0);
+          } else if (to === pos.ep && !c) add(sq, to, P, b[to - dir], 0, 1);
+        }
+      } else if (t === N || t === K) {
+        const offs = t === N ? KN : KG;
+        for (let i = 0; i < 8; i++) {
+          const to = sq + offs[i]; if (to & 0x88) continue;
+          const c = b[to];
+          if (!c) { if (mode !== 2) add(sq, to, t, 0, 0, 0); }
+          else if (((c >> 3) & 1) === them) add(sq, to, t, c, 0, 0);
+        }
+      } else {
+        const offs = t === B ? BI : t === R ? RO : KG;
+        for (let i = 0; i < offs.length; i++) {
+          for (let to = sq + offs[i]; !(to & 0x88); to += offs[i]) {
+            const c = b[to];
+            if (!c) { if (mode !== 2) add(sq, to, t, 0, 0, 0); }
+            else { if (((c >> 3) & 1) === them) add(sq, to, t, c, 0, 0); break; }
+          }
+        }
+      }
+    }
+    if (mode === 2) return out;
+    // Castling
+    const k0 = us ? 0x74 : 4, rook = R | (us << 3);
+    if (pos.kings[us] === k0 && (pos.castle & (us ? 12 : 3)) && !attacked(pos, k0, them)) {
+      if ((pos.castle & (us ? 4 : 1)) && !b[k0 + 1] && !b[k0 + 2] && (b[k0 + 3] & 15) === rook && !attacked(pos, k0 + 1, them))
+        add(k0, k0 + 2, K, 0, 0, 2);
+      if ((pos.castle & (us ? 8 : 2)) && !b[k0 - 1] && !b[k0 - 2] && !b[k0 - 3] && (b[k0 - 4] & 15) === rook && !attacked(pos, k0 - 1, them))
+        add(k0, k0 - 2, K, 0, 0, 3);
+    }
+    // Drops
+    const h = pos.hand[us], ek = pos.kings[them], ok = pos.kings[us];
+    for (let t = 1; t <= 5; t++) {
+      if (!h[t]) continue;
+      for (let i = 0; i < empties.length; i++) {
+        const sq = empties[i], r = sq >> 4;
+        if (t === P && (r === 0 || r === 7)) continue;          // no pawn drops on the 1st or 8th rank
+        if (mode === 1) {
+          const rr = us ? 7 - r : r;
+          if (!(dist(sq, ek) <= 2 || dist(sq, ok) <= 1 || (t === P && rr >= 5))) continue;
+        }
+        out.push({ from: -1, to: sq, piece: t, cap: 0, promo: 0, flag: 0, drop: t });
+      }
+    }
+    return out;
+  }
+
+  function make(pos, m) {
+    const b = pos.board, us = pos.side;
+    pos.undo.push(pos.castle, pos.ep);
+    pos.ep = -1;
+    if (m.drop) { b[m.to] = m.drop | (us << 3); pos.hand[us][m.drop]--; }
+    else {
+      const p = b[m.from]; b[m.from] = 0;
+      if (m.flag === 1) b[m.to + (us ? 16 : -16)] = 0;
+      b[m.to] = m.promo ? (m.promo | (us << 3) | PROMO) : p;
+      if ((p & 7) === K) {
+        pos.kings[us] = m.to;
+        if (m.flag === 2) { b[m.to - 1] = b[m.to + 1]; b[m.to + 1] = 0; }
+        else if (m.flag === 3) { b[m.to + 1] = b[m.to - 2]; b[m.to - 2] = 0; }
+      }
+      if (m.flag === 4) pos.ep = m.from + (us ? -16 : 16);
+      pos.castle &= CM[m.from] & CM[m.to];
+    }
+    pos.side = us ^ 1;
+  }
+  function unmake(pos, m) {
+    const b = pos.board; pos.side ^= 1; const us = pos.side;
+    pos.ep = pos.undo.pop(); pos.castle = pos.undo.pop();
+    if (m.drop) { b[m.to] = 0; pos.hand[us][m.drop]++; return; }
+    let p = b[m.to];
+    if (m.promo) p = P | (us << 3);
+    b[m.from] = p;
+    if (m.flag === 1) { b[m.to] = 0; b[m.to + (us ? 16 : -16)] = m.cap; }
+    else b[m.to] = m.cap;
+    if ((p & 7) === K) {
+      pos.kings[us] = m.from;
+      if (m.flag === 2) { b[m.to + 1] = b[m.to - 1]; b[m.to - 1] = 0; }
+      else if (m.flag === 3) { b[m.to - 2] = b[m.to + 1]; b[m.to + 1] = 0; }
+    }
+  }
+  function legal(pos) {
+    const us = pos.side, out = [];
+    for (const m of gen(pos, 0)) {
+      make(pos, m);
+      if (!attacked(pos, pos.kings[us], us ^ 1)) out.push(m);
+      unmake(pos, m);
+    }
+    return out;
+  }
+  function perft(pos, d) {
+    if (d === 0) return 1;
+    let n = 0; const us = pos.side;
+    for (const m of gen(pos, 0)) {
+      make(pos, m);
+      if (!attacked(pos, pos.kings[us], us ^ 1)) n += perft(pos, d - 1);
+      unmake(pos, m);
+    }
+    return n;
+  }
+  const sameMove = (a, b) => a && b && a.from === b.from && a.to === b.to && a.promo === b.promo && a.drop === b.drop;
+
+  // ---------- evaluation ----------
+  function kingDanger(pos, c) {
+    const b = pos.board, ks = pos.kings[c], en = c ^ 1, eh = pos.hand[en];
+    const rr = c ? 7 - (ks >> 4) : ks >> 4, f = ks & 7;
+    let pen = rr * 35;
+    if (rr === 0 && (f >= 6 || f <= 2)) pen -= 15;
+    const ownPawn = P | (c << 3);
+    for (let i = 0; i < 8; i++) {
+      const n = ks + KG[i]; if (n & 0x88) continue;
+      const q = b[n], att = attacked(pos, n, en);
+      if (att) pen += 14;
+      if (!q) pen += att ? 14 : 4;                       // an empty square by the king is a drop square
+      else if (((q >> 3) & 1) === c) pen -= (q & 15) === ownPawn ? 8 : 3;
+    }
+    const units = Math.min(12, eh[P] + 2 * eh[N] + 2 * eh[B] + 2.5 * eh[R] + 4 * eh[Q]);
+    return (pen * (1 + units * 0.2)) | 0;
+  }
+  /** Static score from the side to move's point of view, in centipawns. */
+  function evaluate(pos) {
+    const b = pos.board; let s = 0;
+    for (let sq = 0; sq < 120; sq++) {
+      if (sq & 0x88) { sq += 7; continue; }
+      const p = b[sq]; if (!p) continue;
+      const t = p & 7, c = (p >> 3) & 1, v = VAL[t === K ? 0 : t] + PST[c][t][sq];
+      s += c ? -v : v;
+    }
+    for (let t = 1; t <= 5; t++) s += HAND[t] * (pos.hand[0][t] - pos.hand[1][t]);
+    s += kingDanger(pos, BLACK) - kingDanger(pos, WHITE);
+    return pos.side ? -s : s;
+  }
+
+  // ---------- search ----------
+  /** Iterative-deepening alpha-beta on one board. opts: {time ms, maxDepth, all}.
+   *  Returns {move, score, pv, depth, all?}. score is for the side to move. */
+  function search(pos, opts) {
+    const time = opts.time || 500, maxDepth = opts.maxDepth || 3, t0 = Date.now();
+    const hist = new Int32Array(2 * 136 * 128), pvs = [];
+    let nodes = 0, stop = false, cur = 1;
+    const hidx = (side, m) => (side * 136 + (m.drop ? 128 + m.drop : m.from)) * 128 + m.to;
+    function order(moves, first) {
+      const side = pos.side;
+      for (const m of moves) {
+        m.o = sameMove(m, first) ? 1e7
+          : m.cap ? 100000 + VAL[m.cap & 7] * 10 - VAL[m.piece]
+          : m.promo ? 90000 : hist[hidx(side, m)] + (m.drop ? 40 : 0);
+      }
+      moves.sort((a, b) => b.o - a.o);
+    }
+    function quiesce(alpha, beta, qd) {
+      nodes++;
+      const stand = evaluate(pos);
+      if (stand >= beta) return stand;
+      if (stand > alpha) alpha = stand;
+      if (qd === 0) return alpha;
+      const us = pos.side, moves = gen(pos, 2);
+      order(moves, null);
+      for (const m of moves) {
+        make(pos, m);
+        if (attacked(pos, pos.kings[us], us ^ 1)) { unmake(pos, m); continue; }
+        const s = -quiesce(-beta, -alpha, qd - 1);
+        unmake(pos, m);
+        if (s > alpha) { alpha = s; if (s >= beta) break; }
+      }
+      return alpha;
+    }
+    function negamax(depth, alpha, beta, ply) {
+      pvs[ply] = [];
+      if (cur > 1 && (++nodes & 1023) === 0 && Date.now() - t0 > time) stop = true;
+      if (stop) return 0;
+      const us = pos.side, chk = attacked(pos, pos.kings[us], us ^ 1);
+      if (chk && ply < 8) depth++;
+      if (depth <= 0) return quiesce(alpha, beta, 5);
+      const moves = gen(pos, chk ? 0 : 1);
+      order(moves, null);
+      let n = 0;
+      for (const m of moves) {
+        make(pos, m);
+        if (attacked(pos, pos.kings[us], us ^ 1)) { unmake(pos, m); continue; }
+        n++;
+        const s = -negamax(depth - 1, -beta, -alpha, ply + 1);
+        unmake(pos, m);
+        if (stop) return 0;
+        if (s > alpha) {
+          alpha = s; pvs[ply] = [m].concat(pvs[ply + 1] || []);
+          if (s >= beta) { if (!m.cap) hist[hidx(us, m)] += depth * depth; break; }
+        }
+      }
+      if (!n) return chk ? -MATE + ply : 0;
+      return alpha;
+    }
+    const rootMoves = legal(pos);
+    if (!rootMoves.length) return { move: null, score: inCheck(pos) ? -MATE : 0, pv: [], depth: 0, all: [] };
+    order(rootMoves, null);
+    let result = null;
+    for (cur = 1; cur <= maxDepth; cur++) {
+      let alpha = -INF, best = null, bestPv = [];
+      const all = [];
+      for (const m of rootMoves) {
+        make(pos, m);
+        const s = -negamax(cur - 1, -INF, opts.all ? INF : -alpha, 1);
+        unmake(pos, m);
+        if (stop) break;
+        all.push({ move: m, score: s });
+        if (s > alpha) { alpha = s; best = m; bestPv = [m].concat(pvs[1] || []); }
+      }
+      if (stop) break;
+      result = { move: best, score: alpha, pv: bestPv, depth: cur, all };
+      order(rootMoves, best);
+      if (Math.abs(alpha) > MATE - 100) break;
+    }
+    return result;
+  }
+
+  /** Exact-ish score of one move for the side to move, plus the opponent's best reply. */
+  function scoreMove(pos, m, depth) {
+    make(pos, m);
+    const r = search(pos, { maxDepth: Math.max(1, depth - 1), time: 4000 });
+    const reply = r.move ? { san: san(pos, r.move), cap: r.move.cap && !r.move.drop ? (r.move.cap & PROMO ? P : r.move.cap & 7) : 0 } : null;
+    unmake(pos, m);
+    return { score: -r.score, reply };
+  }
+
+  // ---------- notation ----------
+  function san(pos, m) {
+    let s;
+    if (m.drop) s = LET[m.drop] + '@' + sqName(m.to);
+    else if (m.flag === 2) s = 'O-O';
+    else if (m.flag === 3) s = 'O-O-O';
+    else if (m.piece === P) s = (m.cap ? 'abcdefgh'[m.from & 7] + 'x' : '') + sqName(m.to) + (m.promo ? '=' + LET[m.promo] : '');
+    else {
+      const others = legal(pos).filter(o => !o.drop && o.piece === m.piece && o.to === m.to && o.from !== m.from);
+      let d = '';
+      if (others.length) {
+        if (!others.some(o => (o.from & 7) === (m.from & 7))) d = 'abcdefgh'[m.from & 7];
+        else if (!others.some(o => (o.from >> 4) === (m.from >> 4))) d = String((m.from >> 4) + 1);
+        else d = sqName(m.from);
+      }
+      s = LET[m.piece] + d + (m.cap ? 'x' : '') + sqName(m.to);
+    }
+    make(pos, m);
+    if (inCheck(pos)) s += legal(pos).length ? '+' : '#';
+    unmake(pos, m);
+    return s;
+  }
+  function describe(m) {
+    if (m.drop) return 'Drop a ' + NAME[m.drop] + ' on ' + sqName(m.to);
+    if (m.flag === 2) return 'Castle kingside';
+    if (m.flag === 3) return 'Castle queenside';
+    const cap = m.cap ? (m.cap & 7) : 0;
+    return NAME[m.piece][0].toUpperCase() + NAME[m.piece].slice(1) + ' from ' + sqName(m.from) + ' to ' + sqName(m.to) +
+      (cap ? ', taking the ' + NAME[cap] : '') + (m.promo ? ', promoting to a ' + NAME[m.promo] : '');
+  }
+
+  // ---------- helpers for explanations ----------
+  function pieceAttacks(b, from, to) {
+    const p = b[from], t = p & 7, c = (p >> 3) & 1, d = to - from;
+    if (t === P) return c ? (d === -15 || d === -17) : (d === 15 || d === 17);
+    if (t === N) return KN.includes(d);
+    if (t === K) return KG.includes(d);
+    const df = (to & 7) - (from & 7), dr = (to >> 4) - (from >> 4);
+    const straight = df === 0 || dr === 0, diag = Math.abs(df) === Math.abs(dr);
+    if (!((straight && (t === R || t === Q)) || (diag && (t === B || t === Q)))) return false;
+    const step = Math.sign(dr) * 16 + Math.sign(df);
+    for (let s = from + step; s !== to; s += step) if (b[s]) return false;
+    return true;
+  }
+  function attackersOf(pos, sq, by) {
+    const out = [], b = pos.board;
+    for (let s = 0; s < 120; s++) {
+      if (s & 0x88) { s += 7; continue; }
+      if (s !== sq && b[s] && ((b[s] >> 3) & 1) === by && pieceAttacks(b, s, sq)) out.push(s);
+    }
+    return out;
+  }
+  function enPrise(pos, sq) {
+    const p = pos.board[sq]; if (!p) return false;
+    const c = (p >> 3) & 1, att = attackersOf(pos, sq, c ^ 1);
+    if (!att.length) return false;
+    if (!attackersOf(pos, sq, c).length) return true;
+    return Math.min(...att.map(s => VAL[pos.board[s] & 7])) < VAL[p & 7];
+  }
+
+  /** What is the opponent threatening if we do nothing? Null when nothing serious. */
+  function threat(pos) {
+    if (inCheck(pos)) return null;
+    const ep = pos.ep; pos.side ^= 1; pos.ep = -1;
+    const base = evaluate(pos), r = search(pos, { maxDepth: 2, time: 300 });
+    let out = null;
+    if (r && r.move) {
+      const mate = r.score >= MATE - 100;
+      if (mate || r.score - base >= 180)
+        out = { san: san(pos, r.move), mate, cap: r.move.cap ? r.move.cap & 7 : 0, to: r.move.to };
+    }
+    pos.side ^= 1; pos.ep = ep;
+    return out;
+  }
+
+  /** A piece we do not hold that would give mate on the spot if our partner passed it over. */
+  function wish(pos) {
+    const us = pos.side;
+    for (const t of [N, P, B, R, Q]) {
+      if (pos.hand[us][t]) continue;
+      pos.hand[us][t]++;
+      let found = null;
+      for (const m of gen(pos, 0)) {
+        if (m.drop !== t) continue;
+        make(pos, m);
+        const ok = !attacked(pos, pos.kings[us], us ^ 1) && inCheck(pos) && !legal(pos).length;
+        unmake(pos, m);
+        if (ok) { found = { type: t, name: NAME[t], square: sqName(m.to), san: LET[t] + '@' + sqName(m.to) + '#' }; break; }
+      }
+      pos.hand[us][t]--;
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /** Plain-language reasons for a move. info: {score, pv, threat}. */
+  function explain(pos, m, info) {
+    info = info || {};
+    const us = pos.side, them = us ^ 1, b = pos.board, R_ = [];
+    const wasCheck = inCheck(pos);
+    const mover = m.promo || m.drop || m.piece;
+    const fromHung = !m.drop && enPrise(pos, m.from);
+    const text = describe(m), notation = san(pos, m);
+    const pieces = b.filter(x => x).length;
+    const oppHand = pos.hand[them].reduce((a, x) => a + x, 0);
+    make(pos, m);
+    const chk = inCheck(pos), replies = legal(pos), mate = chk && !replies.length;
+    const canRetake = attackersOf(pos, m.to, them).length > 0;
+    const hungNow = enPrise(pos, m.to);
+    const targets = [];
+    for (let s = 0; s < 120; s++) {
+      if (s & 0x88) { s += 7; continue; }
+      const q = b[s]; if (!q || ((q >> 3) & 1) !== them) continue;
+      const qt = q & 7; if (qt === P || qt === K) continue;
+      if (pieceAttacks(b, m.to, s) && (VAL[qt] > VAL[mover] || !attackersOf(pos, s, them).length))
+        targets.push('the ' + NAME[qt] + ' on ' + sqName(s));
+    }
+    let reply = null;
+    if (info.pv && info.pv[1]) reply = san(pos, info.pv[1]);
+    const ek = pos.kings[them], ok = pos.kings[us];
+    unmake(pos, m);
+
+    if (mate) R_.push('Checkmate. A mate on either board ends the match, so this wins it for you and your partner.');
+    else if (info.score >= MATE - 100) R_.push('Starts a forced checkmate in ' + Math.ceil((MATE - info.score + 1) / 2) + ' moves.');
+    if (!mate && info.threat) R_.push('Your opponent threatens ' + info.threat.san + (info.threat.mate ? ', which leads to mate' : info.threat.cap ? ', winning your ' + NAME[info.threat.cap] : '') + '. This is the best answer the tutor found.');
+    if (m.drop) {
+      if (wasCheck) R_.push('Blocks the check with a piece from your reserve, so your king stays put.');
+      else if (dist(m.to, ek) <= 2) R_.push('The ' + NAME[m.drop] + ' lands right next to the enemy king. Drops there are the main way to attack in bughouse.');
+      else if (dist(m.to, ok) <= 1) R_.push('Fills a gap beside your own king, so nothing can be dropped there against you.');
+      else R_.push('Puts the ' + NAME[m.drop] + ' from your reserve to work. A piece in your hand does nothing until it lands.');
+      const rr = us ? 7 - (m.to >> 4) : m.to >> 4;
+      if (m.drop === P && rr === 6) R_.push('A pawn dropped on the 7th rank is one step from promoting.');
+    }
+    if (m.cap && !m.drop) {
+      const promoted = m.cap & PROMO, ct = m.cap & 7;
+      R_.push('Takes a ' + NAME[ct] + '. ' + (promoted ? 'It was a promoted pawn, so your partner receives a pawn.' : 'It goes straight to your partner, who can drop it on the other board.'));
+      if (!mate) R_.push(canRetake
+        ? 'They can take back, so it is a trade: your partner gets a ' + NAME[promoted ? P : ct] + ' and their partner gets a ' + NAME[m.promo ? P : m.piece] + '.'
+        : 'Nothing can take back, so it costs you nothing.');
+    }
+    if (chk && !mate) {
+      if (mover === N) R_.push('Check from a knight cannot be blocked, even by a drop. The king must move or the knight must be taken.');
+      else if (dist(m.to, ek) === 1 && !(!m.drop && m.flag)) R_.push('Check from the next square cannot be blocked by a drop.');
+      else R_.push('Gives check. Remember they may block it by dropping a piece from their reserve.');
+    }
+    if (!mate && targets.length && (!hungNow || chk)) {
+      R_.push(targets.length > 1 ? 'Attacks two things at once: ' + targets.slice(0, 2).join(' and ') + '.' : 'Attacks ' + targets[0] + '.');
+    }
+    if (fromHung && !hungNow && !m.cap) R_.push('Moves your ' + NAME[m.piece] + ' out of danger. Losing a piece hurts twice in bughouse: it comes back in their partner’s hand.');
+    if (m.flag === 2 || m.flag === 3) R_.push('Castles. The king goes behind its pawns and the rook comes into play. Leave those pawns where they are: every gap is a square for a dropped piece.');
+    if (m.promo) R_.push('Promotes. If the new ' + NAME[m.promo] + ' is captured later, it turns back into a pawn in their hand.');
+    if (!m.drop && !m.cap && pieces >= 26) {
+      const rr = us ? 7 - (m.from >> 4) : m.from >> 4;
+      if ((m.piece === N || m.piece === B) && rr === 0) R_.push('Develops a piece toward the centre. Get your pieces out fast; games are decided early in bughouse.');
+      if (m.piece === P && (file(m.to) === 3 || file(m.to) === 4) && m.flag === 4) R_.push('Takes space in the centre and opens lines for your bishop and queen.');
+    }
+    if (!R_.length) R_.push(oppHand
+      ? 'No tactic here. They are holding pieces, so safety comes first: this keeps the squares round your king covered.'
+      : 'No tactic here. This keeps your king covered and your pieces protected while you wait for your partner to send you material.');
+    return { san: notation, text, reasons: R_, reply };
+  }
+
+  // ---------- match: two boards, captured pieces cross over ----------
+  const newMatch = () => ({ pos: [startPos(), startPos()] });
+  const cloneMatch = mt => ({ pos: mt.pos.map(clonePos) });
+  /** Play `m` on board `bi`. A captured piece goes to the capturer's partner, who plays the
+   *  captured piece's colour on the other board. Promoted pieces go back to pawns. */
+  function matchMove(mt, bi, m) {
+    let gift = null;
+    if (m.cap && !m.drop) {
+      const t = m.cap & PROMO ? P : m.cap & 7, c = (m.cap >> 3) & 1;
+      mt.pos[1 - bi].hand[c][t]++;
+      gift = { type: t, color: c };
+    }
+    make(mt.pos[bi], m);
+    mt.pos[bi].undo.length = 0;
+    return gift;
+  }
+  function status(pos) {
+    if (legal(pos).length) return 'play';
+    return inCheck(pos) ? 'mate' : 'stalemate';
+  }
+
+  const api = { P, N, B, R, Q, K, WHITE, BLACK, PROMO, MATE, VAL, NAME, LET, sqName, sqOf, file, rank,
+    fromFen, startPos, clonePos, attacked, inCheck, gen, make, unmake, legal, perft, sameMove, evaluate,
+    search, scoreMove, san, describe, threat, wish, explain, newMatch, cloneMatch, matchMove, status };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Bughouse = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const E = Bughouse, $ = id => document.getElementById(id);
+  const GLYPH = ['', '♟︎', '♞︎', '♝︎', '♜︎', '♛︎', '♚︎'];
+  const LEVELS = [{ noise: 70, maxDepth: 1, time: 150 }, { noise: 0, maxDepth: 2, time: 250 }, { noise: 0, maxDepth: 4, time: 700 }];
+  const TIPS = [
+    'Develop fast, castle, and leave the pawns in front of your king alone.',
+    'Before every trade, look at the other board. Will the piece you give away hurt your partner?',
+    'A piece in hand is worth more than the same piece on the board, but only once you drop it.',
+    'Knights are the star drop piece: their checks cannot be blocked.',
+    'Empty squares next to a king are targets. Fill your own, aim at theirs.',
+    'Tell your partner what you need. “Knight mates” is the most useful thing you can say.',
+    'When they are holding a lot, stop attacking and cover your king.'
+  ];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let S = null, epoch = 0;
+
+  // Seats: you are colour H on board 0; your partner is the other colour on board 1.
+  const seat = (bi, c) => bi === 0 ? (c === S.H ? 'you' : 'opp') : (c !== S.H ? 'partner' : 'oppPartner');
+  const SEAT = { you: 'You', opp: 'Opponent', partner: 'Your partner', oppPartner: 'Opponent’s partner' };
+  const isHumanTurn = () => !S.over && S.turn === 0 && S.m.pos[0].side === S.H;
+
+  function newGame() {
+    epoch++;
+    S = { H: +$('side').value, m: E.newMatch(), turn: 0, over: null, sel: null, promo: null, last: [null, null],
+          log: [[], []], feed: [], hint: null, shown: false, thinking: false, fb: null, snaps: [], legal: [], skipSnap: false };
+    render(); step();
+  }
+  function snapshot() {
+    return { m: E.cloneMatch(S.m), turn: S.turn, last: S.last.slice(), log: S.log.map(l => l.slice()), feed: S.feed.slice() };
+  }
+  function takeBack() {
+    if (isHumanTurn() && S.snaps.length > 1) S.snaps.pop();
+    const sn = S.snaps[S.snaps.length - 1]; if (!sn) return;
+    epoch++;
+    Object.assign(S, { m: E.cloneMatch(sn.m), turn: sn.turn, last: sn.last.slice(), log: sn.log.map(l => l.slice()),
+      feed: sn.feed.slice(), over: null, sel: null, promo: null, fb: null, skipSnap: true });
+    step();
+  }
+
+  function step() {
+    if (S.over) return render();
+    const bi = S.turn, pos = S.m.pos[bi], moves = E.legal(pos);
+    if (!moves.length) { S.over = { type: 'stalemate', board: bi }; return render(); }
+    if (bi === 0 && pos.side === S.H) return humanTurn(moves);
+    S.thinking = false; render();
+    const ep = epoch;
+    setTimeout(() => { if (ep === epoch) play(bi, aiPick(pos, S.log[bi].length)); }, 520);
+  }
+  function aiPick(pos, ply) {
+    const L = LEVELS[+$('level').value];
+    const noise = L.noise || (ply < 4 ? 35 : 0);         // a little variety in the opening
+    if (noise) {
+      const r = E.search(pos, { maxDepth: 1, time: 200, all: true });
+      let best = null, bs = -1e9;
+      for (const a of r.all) { const s = a.score > E.MATE - 100 ? a.score : a.score + (Math.random() - .5) * 2 * noise; if (s > bs) { bs = s; best = a.move; } }
+      return best;
+    }
+    return E.search(pos, L).move;
+  }
+  function play(bi, m) {
+    const pos = S.m.pos[bi], mover = pos.side, notation = E.san(pos, m);
+    const gift = E.matchMove(S.m, bi, m);
+    S.last[bi] = m; S.log[bi].push(notation);
+    if (gift) {
+      const from = seat(bi, mover), to = seat(1 - bi, gift.color), n = E.NAME[gift.type];
+      S.feed.unshift(from === 'you' ? 'You won a ' + n + ' for your partner.'
+        : to === 'you' ? 'Your partner won a ' + n + '. It is in your reserve.'
+        : from === 'opp' ? 'Your opponent won a ' + n + ' for their partner.'
+        : 'Their partner won a ' + n + '. Your opponent now holds it.');
+      S.feed.length = Math.min(S.feed.length, 5);
+    }
+    S.sel = null; S.promo = null;
+    if (E.status(pos) === 'mate') S.over = { type: 'mate', board: bi, loser: pos.side };
+    S.turn = 1 - bi;
+    step();
+  }
+
+  function humanTurn(moves) {
+    S.legal = moves;
+    if (!S.skipSnap) S.snaps.push(snapshot());
+    S.skipSnap = false;
+    S.hint = null; S.shown = $('auto').checked; S.thinking = true;
+    render();
+    const ep = epoch;
+    setTimeout(() => {
+      if (ep !== epoch) return;
+      const pos = S.m.pos[0];
+      const r = E.search(pos, { maxDepth: 6, time: 900 });
+      const th = E.threat(pos);
+      S.hint = { move: r.move, score: r.score, info: E.explain(pos, r.move, { score: r.score, pv: r.pv, threat: th }), wish: E.wish(pos) };
+      S.thinking = false; render();
+    }, 40);
+  }
+  function humanPlay(m) {
+    const pos = S.m.pos[0], h = S.hint;
+    S.fb = null;
+    if (h) {
+      const mine = E.san(pos, m);
+      if (E.sameMove(m, h.move)) S.fb = { cls: 'good', html: '<b>' + esc(mine) + '</b> was the tutor’s move.' };
+      else {
+        const a = E.scoreMove(pos, h.move, 3), b = E.scoreMove(pos, m, 3), d = a.score - b.score;
+        const mated = b.score < -(E.MATE - 100);
+        const refute = !b.reply ? '' : mated ? ' It allows a forced checkmate, starting with <b>' + esc(b.reply.san) + '</b>.'
+          : b.reply.cap ? ' It lets them play <b>' + esc(b.reply.san) + '</b>, taking your ' + E.NAME[b.reply.cap] + ' for their partner.'
+          : ' Their best reply is <b>' + esc(b.reply.san) + '</b>.';
+        const best = '<b>' + esc(h.info.san) + '</b>';
+        S.fb = d <= 40 && !mated ? { cls: 'good', html: 'You played <b>' + esc(mine) + '</b>. A good move. The tutor liked ' + best + ', but there is little between them.' }
+          : d <= 150 && !mated ? { cls: 'ok', html: 'You played <b>' + esc(mine) + '</b>. Playable, but ' + best + ' was stronger.' + refute }
+          : d <= 400 && !mated ? { cls: 'bad', html: 'You played <b>' + esc(mine) + '</b>. A mistake; ' + best + ' was better.' + refute + ' Take it back if you want to try again.' }
+          : { cls: 'bad', html: 'You played <b>' + esc(mine) + '</b>. A blunder; ' + best + ' was much better.' + refute + ' Take it back if you want to try again.' };
+      }
+    }
+    epoch++;                       // cancels a tutor search that has not started yet
+    S.thinking = false;
+    play(0, m);
+  }
+
+  // ---------- input ----------
+  function clickSquare(sq) {
+    if (!isHumanTurn() || S.promo) return;
+    const pos = S.m.pos[0], p = pos.board[sq];
+    if (S.sel) {
+      const ms = S.legal.filter(m => m.to === sq && (S.sel.drop ? m.drop === S.sel.drop : !m.drop && m.from === S.sel.from));
+      if (ms.length > 1) { S.promo = ms; return render(); }
+      if (ms.length === 1) return humanPlay(ms[0]);
+    }
+    S.sel = p && ((p >> 3) & 1) === S.H && !(S.sel && S.sel.from === sq) ? { from: sq } : null;
+    render();
+  }
+  function clickReserve(t) {
+    if (!isHumanTurn() || S.promo) return;
+    S.sel = S.sel && S.sel.drop === t ? null : { drop: t };
+    render();
+  }
+
+  // ---------- rendering ----------
+  function drawBoard(bi) {
+    const pos = S.m.pos[bi], bottom = bi === 0 ? S.H : 1 - S.H, flip = bottom === E.BLACK;
+    const human = bi === 0 && isHumanTurn(), last = S.last[bi];
+    const tg = new Map();
+    if (human && S.sel) for (const m of S.legal) if (S.sel.drop ? m.drop === S.sel.drop : !m.drop && m.from === S.sel.from) tg.set(m.to, 1);
+    const kingInCheck = E.inCheck(pos) ? pos.kings[pos.side] : -1;
+    let html = '';
+    for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
+      const r = flip ? row : 7 - row, f = flip ? 7 - col : col, sq = r * 16 + f, p = pos.board[sq];
+      const cls = ['sq'];
+      if ((r + f) % 2 === 0) cls.push('d');
+      if (last && (last.to === sq || last.from === sq)) cls.push('last');
+      if (human && S.sel && S.sel.from === sq) cls.push('sel');
+      if (tg.has(sq)) cls.push('tgt', p ? 'occ' : '');
+      if (sq === kingInCheck) cls.push('check');
+      if (human) cls.push('play');
+      const label = E.sqName(sq) + (p ? ' ' + ((p >> 3) & 1 ? 'black ' : 'white ') + E.NAME[p & 7] : '');
+      html += '<button class="' + cls.join(' ') + '" data-sq="' + sq + '" aria-label="' + label + '"' +
+        (row === 7 ? ' data-f="' + 'abcdefgh'[f] + '"' : '') + (bi ? ' tabindex="-1"' : '') + '>' +
+        (col === 0 ? '<small>' + (r + 1) + '</small>' : '') +
+        (p ? '<span class="' + ((p >> 3) & 1 ? 'b' : 'w') + '">' + GLYPH[p & 7] + '</span>' : '') + '</button>';
+    }
+    $('b' + bi).innerHTML = html;
+    drawSeat(bi, 1 - bottom, 'top'); drawSeat(bi, bottom, 'bot');
+    const lg = S.log[bi]; let t = '';
+    for (let i = 0; i < lg.length; i += 2) t += (i / 2 + 1) + '. ' + lg[i] + (lg[i + 1] ? ' ' + lg[i + 1] : '') + '  ';
+    $('log' + bi).textContent = t;
+  }
+  function drawSeat(bi, c, where) {
+    const pos = S.m.pos[bi], who = seat(bi, c), mine = who === 'you', h = pos.hand[c];
+    const turn = !S.over && S.turn === bi && pos.side === c;
+    const hintDrop = mine && S.shown && S.hint && isHumanTurn() ? S.hint.move.drop : 0;
+    let chips = '';
+    for (let t = 5; t >= 1; t--) {
+      const cls = 'chip' + (h[t] ? '' : ' zero') + (mine && S.sel && S.sel.drop === t ? ' sel' : '') + (hintDrop === t ? ' hint' : '');
+      const inner = '<span class="g">' + GLYPH[t] + '</span>' + h[t];
+      chips += mine ? '<button class="' + cls + '" data-drop="' + t + '"' + (h[t] && isHumanTurn() ? '' : ' disabled') + ' aria-label="' + h[t] + ' ' + E.NAME[t] + ' in reserve">' + inner + '</button>'
+                    : '<span class="' + cls + '" aria-label="' + h[t] + ' ' + E.NAME[t] + '">' + inner + '</span>';
+    }
+    $('s' + bi + where).innerHTML = '<span class="who' + (turn ? ' turn' : '') + '"><i class="' + (c ? 'b' : 'w') + '"></i>' + SEAT[who] + '</span>' +
+      '<span class="reserve" aria-label="' + SEAT[who] + ' reserve">' + chips + '</span>';
+  }
+  function drawArrow() {
+    const svg = $('a0'); svg.innerHTML = '';
+    if (!(S.shown && S.hint && isHumanTurn())) return;
+    const m = S.hint.move, flip = S.H === E.BLACK;
+    const xy = sq => [(flip ? 7 - (sq & 7) : sq & 7) + .5, (flip ? sq >> 4 : 7 - (sq >> 4)) + .5];
+    const [x2, y2] = xy(m.to);
+    if (m.drop) { svg.innerHTML = '<circle cx="' + x2 + '" cy="' + y2 + '" r=".4"/>'; return; }
+    const [x1, y1] = xy(m.from), dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    const ex = x2 - ux * .38, ey = y2 - uy * .38, px = -uy * .2, py = ux * .2;
+    svg.innerHTML = '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + ex + '" y2="' + ey + '"/>' +
+      '<polygon points="' + [x2 - ux * .08, y2 - uy * .08, ex + px, ey + py, ex - px, ey - py].join(' ') + '"/>';
+  }
+  function drawPromo() {
+    const box = $('promo');
+    box.hidden = !S.promo;
+    if (S.promo) box.innerHTML = '<div><p>Promote to</p>' + S.promo.map((m, i) =>
+      '<button data-promo="' + i + '" aria-label="' + E.NAME[m.promo] + '">' + GLYPH[m.promo] + '</button>').join('') + '</div>';
+  }
+  function drawTutor() {
+    let h = '<h2>Tutor</h2>';
+    if (S.over) {
+      if (S.over.type === 'mate') {
+        const who = seat(S.over.board, S.over.loser), won = who === 'opp' || who === 'oppPartner';
+        const line = { you: 'You were checkmated.', partner: 'Your partner was checkmated.', opp: 'You checkmated your opponent.', oppPartner: 'Your partner delivered checkmate.' }[who];
+        h += '<p class="result ' + (won ? 'win' : 'loss') + '">' + line + ' ' + (won ? 'Your team wins.' : 'Their team wins.') + '</p>' +
+          '<p class="note">One mate ends both boards. ' + (won ? '' : 'Take back to replay the last position, or start a new game.') + '</p>';
+      } else h += '<p class="result">Stalemate. The match is drawn.</p><p class="note">A player had no legal move. On a clock they would wait for a piece from their partner.</p>';
+    } else if (!isHumanTurn()) {
+      h += '<p class="note"><b>' + SEAT[seat(S.turn, S.m.pos[S.turn].side)] + '</b> is thinking. Watch the other board: every capture there changes what you or your opponent can drop.</p>';
+    } else if (S.thinking || !S.hint) {
+      h += '<p class="note"><b>Your move.</b> The tutor is working it out…</p>';
+    } else if (!S.shown) {
+      h += '<p class="note"><b>Your move.</b> Pick your own move first, then compare.</p><div class="actions"><button class="btn primary" data-act="show">What should I play?</button></div>';
+    } else {
+      const i = S.hint.info;
+      h += '<div class="move"><b>' + esc(i.san) + '</b><span>' + esc(i.text) + '</span></div>' +
+        '<ul class="why">' + i.reasons.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul>' +
+        (i.reply ? '<p class="note">Expect <b>' + esc(i.reply) + '</b> in reply.</p>' : '') +
+        '<div class="actions"><button class="btn primary" data-act="play">Play it for me</button></div>';
+    }
+    if (isHumanTurn() && S.hint && S.hint.wish)
+      h += '<p class="ask"><b>Ask your partner for a ' + S.hint.wish.name + '.</b> Dropped on ' + S.hint.wish.square + ' it would be checkmate.</p>';
+    if (S.fb) h += '<p class="fb ' + S.fb.cls + '">' + S.fb.html + '</p>';
+    if (!S.over) h += '<p class="note"><b>Remember:</b> ' + TIPS[(S.log[0].length >> 2) % TIPS.length] + '</p>';
+    if (S.feed.length) h += '<ul class="feed">' + S.feed.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
+    $('tutor').innerHTML = h;
+  }
+  function render() {
+    drawBoard(0); drawBoard(1); drawArrow(); drawPromo(); drawTutor();
+    $('back').disabled = !S.snaps.length || (isHumanTurn() && S.snaps.length < 2);
+  }
+
+  // ---------- wiring ----------
+  $('b0').addEventListener('click', e => { const b = e.target.closest('[data-sq]'); if (b) clickSquare(+b.dataset.sq); });
+  $('s0top').addEventListener('click', onReserve); $('s0bot').addEventListener('click', onReserve);
+  function onReserve(e) { const b = e.target.closest('[data-drop]'); if (b && !b.disabled) clickReserve(+b.dataset.drop); }
+  $('promo').addEventListener('click', e => { const b = e.target.closest('[data-promo]'); if (b) humanPlay(S.promo[+b.dataset.promo]); else { S.promo = null; render(); } });
+  $('tutor').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'show') { S.shown = true; render(); }
+    else if (S.hint && isHumanTurn()) humanPlay(S.hint.move);
+  });
+  $('new').addEventListener('click', newGame);
+  $('back').addEventListener('click', takeBack);
+  $('auto').addEventListener('change', () => {
+    try { localStorage.setItem('bughouse.auto', $('auto').checked ? '1' : '0'); } catch (e) {}
+    if (S) { S.shown = $('auto').checked; render(); }
+  });
+  try { if (localStorage.getItem('bughouse.auto') === '0') $('auto').checked = false; } catch (e) {}
+  newGame();
+})();
+</script>
+
+</body>
+</html>

@@ -14,7 +14,7 @@ AI-generated browser games and interactive experiments in HTML, CSS, and JavaScr
 
 **[Play the browser game collection](https://left-handed-luminary.github.io/TronsGames/)**
 
-Explore 15 games and interactive experiments, including Crystal Madness, Mega Minesweeper, Vector Maze, Newton's Cradle, and Davidic Lyre.
+Explore 16 games and interactive experiments, including Crystal Madness, Mega Minesweeper, Vector Maze, Newton's Cradle, and Davidic Lyre.
 
 This project explores rapid AI-assisted development with Gemini through individual playable HTML pages. Open the gallery to play, or browse the source to inspect the code. No build step required.
 ## About the Project
@@ -41,6 +41,7 @@ The repository includes several one-page games and experiments, including:
 |---|---|
 | `agalag.html` | Retro arcade shooter inspired by classic space shooters |
 | `asteroid-clone.html` | Asteroids-style browser game prototype |
+| `bughouse-tutor.html` | Bughouse chess with two boards, three computer players, move explanations, reserve drops, and takebacks |
 | `chromatic-drift.html` | Color and movement based arcade experiment |
 | `crystal-madness.html` | Isometric crystal-collecting marble adventure with three courses and touchscreen controls |
 | `cootie-catcher.html` | Interactive fortune-teller style game |
