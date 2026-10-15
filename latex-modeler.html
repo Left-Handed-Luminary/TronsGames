@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tactile Membrane — Organic Skin & Stretchy Plastic Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100dvh;
+            overflow: hidden;
+            background-color: #0d0a09;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+        }
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .glass-panel {
+            background: rgba(20, 17, 15, 0.76);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(255, 235, 220, 0.12);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+        .tool-btn {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .tool-btn.active {
+            background: linear-gradient(135deg, #e09f7d 0%, #c57b57 100%);
+            color: #120d0a;
+            font-weight: 600;
+            box-shadow: 0 4px 18px rgba(224, 159, 125, 0.4);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: rgba(255, 255, 255, 0.12);
+            height: 6px;
+            border-radius: 999px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #eab69f;
+            cursor: pointer;
+            border: 2px solid #1a1412;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+        }
+        .swatch-ring {
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+        .swatch-ring.active {
+            transform: scale(1.12);
+            box-shadow: 0 0 0 2px #14110f, 0 0 0 4px #eab69f;
+        }
+        @keyframes pulseHint {
+            0%, 100% { opacity: 0.75; transform: translate(-50%, 0) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -3px) scale(1.02); }
+        }
+        .hint-pill {
+            animation: pulseHint 3.2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="text-stone-100 antialiased selection:bg-amber-500/30">
+
+    <!-- 3D WebGL Viewport -->
+    <div id="canvas-container"></div>
+
+    <!-- Top Header & Quick Actions -->
+    <header class="fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 pointer-events-none">
+        <div class="glass-panel px-4 py-2.5 rounded-2xl pointer-events-auto flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-gradient-to-tr from-amber-700 via-orange-300 to-rose-200 shadow-sm shadow-orange-400/50"></div>
+            <div>
+                <h1 class="text-xs sm:text-sm font-semibold tracking-wide text-stone-100 leading-none">MEMBRANE STUDIO</h1>
+                <p id="status-subtext" class="text-[10px] text-stone-400 mt-0.5">Touch & drag to sculpt underneath the taut sheet</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 pointer-events-auto">
+            <button id="btn-rain-toggle" title="Toggle Rain Simulation" class="glass-panel bg-amber-500/20 border-amber-400/40 hover:bg-stone-800/80 active:scale-95 px-3.5 py-2.5 rounded-2xl text-xs font-medium text-amber-200 flex items-center gap-1.5 transition">
+                <svg class="w-4 h-4 text-sky-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+                <span id="rain-toggle-label" class="hidden sm:inline">Rain: On</span>
+            </button>
+
+            <button id="btn-randomize" title="Rearrange Contours" class="glass-panel hover:bg-stone-800/80 active:scale-95 px-3.5 py-2.5 rounded-2xl text-xs font-medium text-stone-200 flex items-center gap-1.5 transition">
+                <svg class="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span class="hidden sm:inline">Re-Drape</span>
+            </button>
+
+            <button id="btn-snapshot" title="Capture Studio Render" class="glass-panel hover:bg-stone-800/80 active:scale-95 px-3.5 py-2.5 rounded-2xl text-xs font-medium text-stone-200 flex items-center gap-1.5 transition">
+                <svg class="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <circle cx="12" cy="13" r="3" />
+                </svg>
+                <span class="hidden sm:inline">Capture</span>
+            </button>
+
+            <button id="btn-toggle-drawer" class="glass-panel hover:bg-stone-800/80 active:scale-95 p-2.5 rounded-2xl text-stone-200 transition" aria-label="Material Settings">
+                <svg class="w-5 h-5 text-amber-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Floating Touch Instruction Pill -->
+    <div id="touch-hint" class="fixed top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none hint-pill">
+        <div class="glass-panel px-4 py-1.5 rounded-full text-[11px] text-amber-100/90 tracking-wide flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+            <span id="hint-text">Drag forms beneath the plastic or press directly on the sheet</span>
+        </div>
+    </div>
+
+    <!-- Collapsible Studio Material & Skin Palette Drawer -->
+    <aside id="studio-drawer" class="fixed top-16 right-4 z-30 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-9.5rem)] overflow-y-auto glass-panel rounded-3xl p-4 transition-all duration-300 transform translate-x-0 opacity-100">
+        <div class="flex items-center justify-between pb-3 mb-3 border-b border-stone-700/50">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-amber-200/90">Material & Studio Setup</h2>
+            <button id="btn-close-drawer" class="text-stone-400 hover:text-stone-200 p-1 rounded-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Plastic Sheet Material Presets -->
+        <div class="mb-4">
+            <label class="block text-[11px] font-medium text-stone-300 mb-2">Plastic Bedsheet Material</label>
+            <div class="grid grid-cols-2 gap-1.5" id="plastic-presets">
+                <button data-preset="milky" class="preset-btn active text-left px-3 py-2 rounded-xl text-xs bg-amber-500/20 border border-amber-400/50 text-amber-100 font-medium transition">
+                    Milky Polyethylene
+                    <span class="block text-[9px] text-stone-400 font-normal">Soft bedsheet translucency</span>
+                </button>
+                <button data-preset="clear" class="preset-btn text-left px-3 py-2 rounded-xl text-xs bg-stone-800/50 border border-stone-700/50 text-stone-300 hover:bg-stone-800 transition">
+                    Clear Glossy PVC
+                    <span class="block text-[9px] text-stone-400 font-normal">Razor-sharp wet highlights</span>
+                </button>
+                <button data-preset="amber" class="preset-btn text-left px-3 py-2 rounded-xl text-xs bg-stone-800/50 border border-stone-700/50 text-stone-300 hover:bg-stone-800 transition">
+                    Warm Latex Film
+                    <span class="block text-[9px] text-stone-400 font-normal">Honey-tinted elastic sheen</span>
+                </button>
+                <button data-preset="pearl" class="preset-btn text-left px-3 py-2 rounded-xl text-xs bg-stone-800/50 border border-stone-700/50 text-stone-300 hover:bg-stone-800 transition">
+                    Iridescent Silk Vinyl
+                    <span class="block text-[9px] text-stone-400 font-normal">Pearly studio speculars</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Skin Tone Palette Selector -->
+        <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-[11px] font-medium text-stone-300">Underneath Skin Tone Palette</label>
+                <input type="color" id="custom-skin-picker" value="#c68663" title="Tint selected form" class="w-5 h-5 rounded cursor-pointer bg-transparent border-0 p-0">
+            </div>
+            <div class="grid grid-cols-5 gap-2" id="palette-selector">
+                <!-- Warm Studio Spectrum -->
+                <button data-palette="spectrum" class="swatch-ring active h-8 rounded-xl overflow-hidden flex border border-white/20" title="Full Warm Skin Spectrum">
+                    <span class="flex-1 h-full" style="background:#3d2217"></span>
+                    <span class="flex-1 h-full" style="background:#7c4732"></span>
+                    <span class="flex-1 h-full" style="background:#b97756"></span>
+                    <span class="flex-1 h-full" style="background:#dfa382"></span>
+                    <span class="flex-1 h-full" style="background:#f3cfb9"></span>
+                </button>
+                <!-- Deep Umber & Espresso -->
+                <button data-palette="umber" class="swatch-ring h-8 rounded-xl overflow-hidden flex border border-white/20" title="Deep Umber & Rich Bronze">
+                    <span class="flex-1 h-full" style="background:#26140d"></span>
+                    <span class="flex-1 h-full" style="background:#412317"></span>
+                    <span class="flex-1 h-full" style="background:#5c3424"></span>
+                    <span class="flex-1 h-full" style="background:#7a4834"></span>
+                    <span class="flex-1 h-full" style="background:#945b42"></span>
+                </button>
+                <!-- Terracotta & Peach -->
+                <button data-palette="terracotta" class="swatch-ring h-8 rounded-xl overflow-hidden flex border border-white/20" title="Terracotta, Rose & Peach">
+                    <span class="flex-1 h-full" style="background:#9d543e"></span>
+                    <span class="flex-1 h-full" style="background:#bd6e54"></span>
+                    <span class="flex-1 h-full" style="background:#d68b70"></span>
+                    <span class="flex-1 h-full" style="background:#e9aa90"></span>
+                    <span class="flex-1 h-full" style="background:#f5c6b0"></span>
+                </button>
+                <!-- Golden Ochre & Honey -->
+                <button data-palette="golden" class="swatch-ring h-8 rounded-xl overflow-hidden flex border border-white/20" title="Golden Bronze & Warm Ochre">
+                    <span class="flex-1 h-full" style="background:#653b22"></span>
+                    <span class="flex-1 h-full" style="background:#8f5836"></span>
+                    <span class="flex-1 h-full" style="background:#b8784e"></span>
+                    <span class="flex-1 h-full" style="background:#d99b6e"></span>
+                    <span class="flex-1 h-full" style="background:#ecc09a"></span>
+                </button>
+                <!-- Soft Ivory & Blush -->
+                <button data-palette="ivory" class="swatch-ring h-8 rounded-xl overflow-hidden flex border border-white/20" title="Warm Ivory & Rose Undertones">
+                    <span class="flex-1 h-full" style="background:#c48871"></span>
+                    <span class="flex-1 h-full" style="background:#d8a18b"></span>
+                    <span class="flex-1 h-full" style="background:#e5b9a6"></span>
+                    <span class="flex-1 h-full" style="background:#f1cfc0"></span>
+                    <span class="flex-1 h-full" style="background:#fae3d7"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Physics & Shader Sliders -->
+        <div class="space-y-3 pt-2 border-t border-stone-700/50">
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-stone-300">Vacuum Shrink-Wrap Tension</span>
+                    <span id="val-tension" class="text-amber-300 font-mono">72%</span>
+                </div>
+                <input id="slider-tension" type="range" min="15" max="100" value="72" class="w-full">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-stone-300">Sheet Milky Opacity</span>
+                    <span id="val-opacity" class="text-amber-300 font-mono">42%</span>
+                </div>
+                <input id="slider-opacity" type="range" min="5" max="90" value="42" class="w-full">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-stone-300">Tension Wrinkles & Creases</span>
+                    <span id="val-wrinkles" class="text-amber-300 font-mono">65%</span>
+                </div>
+                <input id="slider-wrinkles" type="range" min="0" max="100" value="65" class="w-full">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-stone-300">Studio Key Light Angle</span>
+                    <span id="val-light" class="text-amber-300 font-mono">45°</span>
+                </div>
+                <input id="slider-light" type="range" min="0" max="360" value="45" class="w-full">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-stone-300">Raindrop Downpour & Ripples</span>
+                    <span id="val-rain" class="text-sky-300 font-mono">65%</span>
+                </div>
+                <input id="slider-rain" type="range" min="0" max="100" value="65" class="w-full">
+            </div>
+        </div>
+
+        <!-- Clear / Reset Actions -->
+        <div class="mt-4 pt-3 border-t border-stone-700/50 flex items-center justify-between gap-2">
+            <button id="btn-clear-dents" class="flex-1 py-2 px-3 rounded-xl bg-stone-800/80 hover:bg-stone-700/80 text-[11px] text-stone-300 font-medium transition">
+                Smooth Plastic
+            </button>
+            <button id="btn-reset-all" class="flex-1 py-2 px-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-700/30 text-[11px] text-rose-200 font-medium transition">
+                Reset Sculpture
+            </button>
+        </div>
+    </aside>
+
+    <!-- Bottom Touchscreen Sculpting Mode Dock -->
+    <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 w-[94vw] max-w-xl pointer-events-auto">
+        <div class="glass-panel p-1.5 rounded-3xl flex items-center justify-between gap-1">
+            <button data-mode="move" class="tool-btn active flex-1 py-2.5 px-2 rounded-2xl flex flex-col sm:flex-row items-center justify-center gap-1.5 text-xs text-stone-200">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                </svg>
+                <span>Slide Forms</span>
+            </button>
+
+            <button data-mode="press" class="tool-btn flex-1 py-2.5 px-2 rounded-2xl flex flex-col sm:flex-row items-center justify-center gap-1.5 text-xs text-stone-200">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <span>Press Sheet</span>
+            </button>
+
+            <button data-mode="inflate" class="tool-btn flex-1 py-2.5 px-2 rounded-2xl flex flex-col sm:flex-row items-center justify-center gap-1.5 text-xs text-stone-200">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Add / Inflate</span>
+            </button>
+
+            <button data-mode="orbit" class="tool-btn flex-1 py-2.5 px-2 rounded-2xl flex flex-col sm:flex-row items-center justify-center gap-1.5 text-xs text-stone-200">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <span>Camera Tilt</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Snapshot Flash & Modal Notification -->
+    <div id="toast-msg" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 pointer-events-none opacity-0 transition-opacity duration-300">
+        <div class="glass-panel px-4 py-2 rounded-full text-xs text-amber-200 font-medium shadow-lg">
+            Saved high-res studio snapshot
+        </div>
+    </div>
+
+    <script>
+        window.onload = function () {
+            // ============================================================================
+            // 1. PALETTES & CONFIGURATION
+            // ============================================================================
+            const PALETTES = {
+                spectrum: ['#3d2217', '#613624', '#8d533a', '#b97756', '#d69574', '#e7b497', '#f4d3be'],
+                umber:    ['#24120b', '#381d12', '#4f2b1d', '#693b28', '#834d36', '#9c6247', '#b3785b'],
+                terracotta:['#87412d', '#a6563e', '#c16f54', '#d6896c', '#e6a489', '#f1bea6', '#f8d7c6'],
+                golden:   ['#54301a', '#784627', '#9e623b', '#c18052', '#dca070', '#ebbc91', '#f6d6b4'],
+                ivory:    ['#b37762', '#c88e78', '#d9a48f', '#e7baaa', '#f1cfc1', '#f8e0d6', '#fdf0ea']
+            };
+
+            let currentPaletteKey = 'spectrum';
+            let currentMode = 'move'; // 'move' | 'press' | 'inflate' | 'orbit'
+
+            // Simulation state
+            const simParams = {
+                tension: 0.72,        // How tightly the sheet wraps around forms vs bridges across
+                milkyOpacity: 0.42,   // Base translucency of the plastic sheet
+                wrinkleIntensity: 0.65,// Bridge tension creases between forms
+                lightAngle: 45,       // Degrees
+                rainIntensity: 0.65,  // Rain intensity & wet surface ripple strength
+                sheetTint: new THREE.Color(0xfff7f2),
+                specularTint: new THREE.Color(0xffffff),
+                glossiness: 96.0,
+                iridescence: 0.15
+            };
+
+            // ============================================================================
+            // 2. THREE.JS SCENE, CAMERA, RENDERER
+            // ============================================================================
+            const container = document.getElementById('canvas-container');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0d0a09);
+
+            const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+            // Spherical camera coordinates for smooth touch orbiting
+            const camSpherical = {
+                radius: 13.5,
+                phi: 0.42,     // Polar angle from top (0 = straight down)
+                theta: 0.0,    // Azimuth angle
+                targetPhi: 0.42,
+                targetTheta: 0.0,
+                targetRadius: 13.5
+            };
+
+            const renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                preserveDrawingBuffer: true,
+                powerPreference: 'high-performance'
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Responsive camera distance for portrait vs landscape foldable screens
+            function adjustCameraForAspect() {
+                const aspect = window.innerWidth / window.innerHeight;
+                camera.aspect = aspect;
+                camera.updateProjectionMatrix();
+                if (aspect < 0.75) {
+                    camSpherical.targetRadius = 16.8;
+                } else if (aspect < 1.1) {
+                    camSpherical.targetRadius = 14.5;
+                } else {
+                    camSpherical.targetRadius = 12.6;
+                }
+            }
+            adjustCameraForAspect();
+
+            // ============================================================================
+            // 3. STUDIO LIGHTING & DARK BED BASE
+            // ============================================================================
+            const ambientLight = new THREE.AmbientLight(0xf7d9c4, 0.45);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0xfff6ee, 1.35);
+            keyLight.position.set(6, 11, 6);
+            scene.add(keyLight);
+
+            const rimLight = new THREE.DirectionalLight(0xffb48a, 0.85);
+            rimLight.position.set(-7, 6, -6);
+            scene.add(rimLight);
+
+            const fillLight = new THREE.PointLight(0xe59872, 0.6, 25);
+            fillLight.position.set(0, 5, 4);
+            scene.add(fillLight);
+
+            // Dark matte studio bed underneath everything
+            const bedGeo = new THREE.PlaneGeometry(30, 30);
+            bedGeo.rotateX(-Math.PI / 2);
+            const bedMat = new THREE.MeshStandardMaterial({
+                color: 0x120d0b,
+                roughness: 0.92,
+                metalness: 0.05
+            });
+            const bedMesh = new THREE.Mesh(bedGeo, bedMat);
+            bedMesh.position.y = -0.05;
+            scene.add(bedMesh);
+
+            // ============================================================================
+            // 4. ORGANIC SKIN-TONED FORMS UNDERNEATH THE SHEET
+            // ============================================================================
+            const MAX_FORMS = 18;
+            const formsGroup = new THREE.Group();
+            scene.add(formsGroup);
+
+            // Shared smooth sphere geometry scaled into organic pillows/contours
+            const baseFormGeo = new THREE.SphereGeometry(1, 48, 36);
+            const organicForms = []; // { mesh, x, z, rx, rz, height, color, targetX, targetZ, targetRx, targetRz, targetHeight }
+
+            function createSkinMaterial(hexColor) {
+                const col = new THREE.Color(hexColor);
+                // Warm subsurface emissive glow
+                const sssCol = col.clone().multiplyScalar(0.28).add(new THREE.Color(0x240903));
+                return new THREE.MeshPhysicalMaterial({
+                    color: col,
+                    emissive: sssCol,
+                    emissiveIntensity: 0.65,
+                    roughness: 0.58,
+                    metalness: 0.02,
+                    clearcoat: 0.08,
+                    clearcoatRoughness: 0.4,
+                    reflectivity: 0.35
+                });
+            }
+
+            function addOrganicForm(x, z, rx, rz, height, colorHex) {
+                if (organicForms.length >= MAX_FORMS) {
+                    // Remove oldest form if exceeding shader uniform array capacity
+                    const oldest = organicForms.shift();
+                    formsGroup.remove(oldest.mesh);
+                    oldest.mesh.material.dispose();
+                }
+
+                const mat = createSkinMaterial(colorHex);
+                const mesh = new THREE.Mesh(baseFormGeo, mat);
+                mesh.scale.set(rx, height, rz);
+                mesh.position.set(x, height * 0.35, z);
+                formsGroup.add(mesh);
+
+                const formObj = {
+                    mesh,
+                    x, z,
+                    rx, rz,
+                    height,
+                    color: new THREE.Color(colorHex),
+                    targetX: x,
+                    targetZ: z,
+                    targetRx: rx,
+                    targetRz: rz,
+                    targetHeight: height
+                };
+                organicForms.push(formObj);
+                return formObj;
+            }
+
+            function populateInitialForms() {
+                while (organicForms.length > 0) {
+                    const f = organicForms.pop();
+                    formsGroup.remove(f.mesh);
+                    f.mesh.material.dispose();
+                }
+
+                const pal = PALETTES[currentPaletteKey];
+                // Curated initial organic cluster (pillowy body-like contours & spheres)
+                const layout = [
+                    { x: -1.45, z: -0.65, rx: 1.55, rz: 1.25, h: 1.38, c: pal[1] },
+                    { x:  0.35, z: -0.95, rx: 1.35, rz: 1.60, h: 1.48, c: pal[3] },
+                    { x:  1.65, z:  0.20, rx: 1.40, rz: 1.25, h: 1.28, c: pal[4] },
+                    { x: -0.25, z:  0.65, rx: 1.75, rz: 1.35, h: 1.58, c: pal[2] },
+                    { x: -1.85, z:  1.10, rx: 1.15, rz: 1.15, h: 1.08, c: pal[0] },
+                    { x:  0.95, z:  1.50, rx: 1.30, rz: 1.10, h: 1.18, c: pal[5] },
+                    { x: -0.65, z: -1.80, rx: 1.15, rz: 1.05, h: 1.05, c: pal[6 % pal.length] },
+                    { x:  1.95, z: -1.35, rx: 1.05, rz: 1.15, h: 0.98, c: pal[2] }
+                ];
+
+                layout.forEach(item => {
+                    addOrganicForm(item.x, item.z, item.rx, item.rz, item.h, item.c);
+                });
+            }
+
+            populateInitialForms();
+
+            // ============================================================================
+            // 5. HIGH-DENSITY STRETCHY PLASTIC BEDSHEET MESH & CUSTOM SHADER
+            // ============================================================================
+            const SHEET_SIZE = 10.5;
+            const GRID_SEGMENTS = 156; // 156x156 = 24,336 vertices for silky smooth specular creases
+            const sheetGeo = new THREE.PlaneGeometry(SHEET_SIZE, SHEET_SIZE, GRID_SEGMENTS, GRID_SEGMENTS);
+            sheetGeo.rotateX(-Math.PI / 2);
+
+            const vertexCount = sheetGeo.attributes.position.count;
+            // Custom attributes passed to shader for contact translucency & tension highlights
+            const attrContact = new Float32Array(vertexCount);
+            const attrStretch = new Float32Array(vertexCount);
+            const attrWetness = new Float32Array(vertexCount);
+            const attrSkinColor = new Float32Array(vertexCount * 3);
+
+            // Persistent user finger press/pull displacement field + dynamic rain ripple field
+            const userDentField = new Float32Array(vertexCount);
+            const targetDentField = new Float32Array(vertexCount);
+            const rainWetnessField = new Float32Array(vertexCount);
+
+            sheetGeo.setAttribute('aContact', new THREE.BufferAttribute(attrContact, 1));
+            sheetGeo.setAttribute('aStretch', new THREE.BufferAttribute(attrStretch, 1));
+            sheetGeo.setAttribute('aWetness', new THREE.BufferAttribute(attrWetness, 1));
+            sheetGeo.setAttribute('aSkinColor', new THREE.BufferAttribute(attrSkinColor, 3));
+
+            // Store original X,Z coordinates of the sheet
+            const baseXZ = new Float32Array(vertexCount * 2);
+            const posArr = sheetGeo.attributes.position.array;
+            for (let i = 0; i < vertexCount; i++) {
+                baseXZ[i * 2]     = posArr[i * 3];
+                baseXZ[i * 2 + 1] = posArr[i * 3 + 2];
+            }
+
+            // Custom GLSL Shader for the Stretchy Translucent Plastic Bedsheet
+            // Captures:
+            // 1. Contact clarity & subsurface warm skin bloom where the sheet presses tightly against a form
+            // 2. Milky / frosted scattering in suspended tented gaps
+            // 3. Dual-lobe razor-sharp studio specular reflections + Fresnel rim sheen
+            // 4. Micro-tension ridge highlights along stretched creases
+            const plasticShaderMat = new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                uniforms: {
+                    uKeyLightPos:   { value: new THREE.Vector3(6, 11, 6) },
+                    uRimLightPos:   { value: new THREE.Vector3(-7, 6, -6) },
+                    uSheetTint:     { value: simParams.sheetTint },
+                    uSpecularTint:  { value: simParams.specularTint },
+                    uMilkyOpacity:  { value: simParams.milkyOpacity },
+                    uGlossiness:    { value: simParams.glossiness },
+                    uIridescence:   { value: simParams.iridescence }
+                },
+                vertexShader: `
+                    attribute float aContact;
+                    attribute float aStretch;
+                    attribute float aWetness;
+                    attribute vec3 aSkinColor;
+
+                    varying vec3 vWorldPos;
+                    varying vec3 vNormal;
+                    varying float vContact;
+                    varying float vStretch;
+                    varying float vWetness;
+                    varying vec3 vSkinColor;
+
+                    void main() {
+                        vContact = aContact;
+                        vStretch = aStretch;
+                        vWetness = aWetness;
+                        vSkinColor = aSkinColor;
+
+                        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                        vWorldPos = worldPosition.xyz;
+                        vNormal = normalize(normalMatrix * normal);
+
+                        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uKeyLightPos;
+                    uniform vec3 uRimLightPos;
+                    uniform vec3 uSheetTint;
+                    uniform vec3 uSpecularTint;
+                    uniform float uMilkyOpacity;
+                    uniform float uGlossiness;
+                    uniform float uIridescence;
+
+                    varying vec3 vWorldPos;
+                    varying vec3 vNormal;
+                    varying float vContact;
+                    varying float vStretch;
+                    varying float vWetness;
+                    varying vec3 vSkinColor;
+
+                    // Subtle studio softbox reflection pattern
+                    float softboxEnv(vec3 R) {
+                        float sb1 = smoothstep(0.55, 0.92, dot(R, normalize(uKeyLightPos)));
+                        float sb2 = smoothstep(0.60, 0.95, dot(R, normalize(uRimLightPos))) * 0.65;
+                        float strip = smoothstep(0.75, 0.98, R.y) * (0.5 + 0.5 * cos(R.x * 6.0));
+                        return sb1 + sb2 + strip * 0.35;
+                    }
+
+                    void main() {
+                        vec3 N = normalize(vNormal);
+                        vec3 V = normalize(cameraPosition - vWorldPos);
+                        if (dot(N, V) < 0.0) N = -N;
+
+                        vec3 L1 = normalize(uKeyLightPos - vWorldPos);
+                        vec3 L2 = normalize(uRimLightPos - vWorldPos);
+                        vec3 H1 = normalize(V + L1);
+                        vec3 H2 = normalize(V + L2);
+                        vec3 R  = reflect(-V, N);
+
+                        // Schlick Fresnel for glossy plastic grazing angles
+                        float NdotV = max(dot(N, V), 0.0);
+                        float fresnel = pow(1.0 - NdotV, 3.6);
+
+                        // Wetness boosts glossiness for razor-sharp water film reflections
+                        float wetFactor = clamp(vWetness, 0.0, 1.0);
+                        float effectiveGloss = uGlossiness * (1.0 + wetFactor * 1.15);
+
+                        // Primary razor-sharp clearcoat specular + broader vinyl sheen
+                        float specSharp1 = pow(max(dot(N, H1), 0.0), effectiveGloss * 2.2);
+                        float specWide1  = pow(max(dot(N, H1), 0.0), 22.0) * 0.28;
+                        float specSharp2 = pow(max(dot(N, H2), 0.0), effectiveGloss * 1.4) * 0.6;
+
+                        float envRefl = softboxEnv(R);
+
+                        // Subtle thin-film iridescence on stretched plastic ridges
+                        vec3 iridColor = 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + NdotV * 1.7 + vStretch * 0.9));
+                        vec3 specColor = mix(uSpecularTint, iridColor, uIridescence);
+
+                        // Contact subsurface scattering: where plastic touches warm skin, the skin warmth blooms through
+                        float contactFactor = clamp(vContact, 0.0, 1.0);
+                        float diff = max(dot(N, L1), 0.0) * 0.65 + 0.35;
+
+                        // Warm skin underneath diffused through the milky plastic sheet
+                        vec3 subsurfaceSkin = vSkinColor * (0.75 + 0.45 * diff);
+                        // Add warm reddish-amber subsurface scatter halo around high-contact zones
+                        vec3 sssWarmth = vSkinColor * vec3(1.22, 0.86, 0.72) * pow(contactFactor, 1.5) * 0.42;
+
+                        // Stretched tension ridges catch milky polymer stress whitening + specular pop
+                        float ridgeFactor = clamp(vStretch * 1.35, 0.0, 1.0);
+                        vec3 milkyFilm = mix(uSheetTint * 0.85, uSheetTint * 1.08, diff);
+
+                        // Wet plastic becomes more optically transparent (like water on frosted film)
+                        float wetClarity = clamp(contactFactor + wetFactor * 0.38, 0.0, 1.0);
+
+                        // Blend between milky suspended film and warm skin pressed against the sheet
+                        vec3 basePlastic = mix(milkyFilm, subsurfaceSkin + sssWarmth, wetClarity * (0.88 - uMilkyOpacity * 0.35));
+
+                        // Add stress-whitening along taut bridge folds
+                        basePlastic = mix(basePlastic, uSheetTint * 1.12, ridgeFactor * 0.25);
+
+                        // Combine specular highlights + wet water-ring shimmer
+                        vec3 wetRingTint = mix(specColor, vec3(0.88, 0.95, 1.0), wetFactor * 0.45);
+                        vec3 totalSpecular = wetRingTint * (specSharp1 * (1.35 + wetFactor * 0.9) + specWide1 + specSharp2 + envRefl * (0.55 + wetFactor * 0.35) + fresnel * 0.65);
+                        // Boost specular along stretched creases
+                        totalSpecular *= (1.0 + ridgeFactor * 0.55);
+
+                        vec3 finalColor = basePlastic + totalSpecular;
+
+                        // Dynamic alpha: clearer where pressed taut against skin or wet with rain
+                        float baseAlpha = mix(uMilkyOpacity, uMilkyOpacity * 0.48, wetClarity * 0.75);
+                        float specularAlpha = clamp((specSharp1 + specSharp2 + envRefl * 0.45 + fresnel * 0.65 + ridgeFactor * 0.22 + wetFactor * 0.25), 0.0, 1.0);
+                        float finalAlpha = clamp(baseAlpha + specularAlpha * 0.85 + contactFactor * 0.28, 0.14, 0.98);
+
+                        gl_FragColor = vec4(finalColor, finalAlpha);
+                    }
+                `
+            });
+
+            const plasticMesh = new THREE.Mesh(sheetGeo, plasticShaderMat);
+            scene.add(plasticMesh);
+
+            // ============================================================================
+            // 5B. RAIN STREAKS, SURFACE WATER BEADS & RIPPLE WAVES
+            // ============================================================================
+            const MAX_RAINDROPS = 220;
+            const rainLinePositions = new Float32Array(MAX_RAINDROPS * 6); // 2 vertices per streak
+            const rainGeo = new THREE.BufferGeometry();
+            rainGeo.setAttribute('position', new THREE.BufferAttribute(rainLinePositions, 3));
+
+            const rainMat = new THREE.LineBasicMaterial({
+                color: 0xffeede,
+                transparent: true,
+                opacity: 0.38,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const rainLinesMesh = new THREE.LineSegments(rainGeo, rainMat);
+            scene.add(rainLinesMesh);
+
+            const raindrops = [];
+            for (let i = 0; i < MAX_RAINDROPS; i++) {
+                raindrops.push({
+                    x: (Math.random() - 0.5) * (SHEET_SIZE * 0.92),
+                    y: Math.random() * 11.0 + 1.5,
+                    z: (Math.random() - 0.5) * (SHEET_SIZE * 0.92),
+                    speed: 11.5 + Math.random() * 5.5,
+                    len: 0.42 + Math.random() * 0.38
+                });
+            }
+
+            // Glistening 3D water beads resting and sliding on the plastic sheet
+            const MAX_BEADS = 90;
+            const beadGeo = new THREE.SphereGeometry(1, 12, 10);
+            beadGeo.scale(1.0, 0.52, 1.0); // Flattened surface-tension water droplet shape
+            const beadMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                roughness: 0.03,
+                metalness: 0.02,
+                transmission: 0.92,
+                transparent: true,
+                opacity: 0.86,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.02
+            });
+            const beadsInstanced = new THREE.InstancedMesh(beadGeo, beadMat, MAX_BEADS);
+            beadsInstanced.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            scene.add(beadsInstanced);
+
+            const waterBeads = [];
+            const dummyBead = new THREE.Object3D();
+            for (let i = 0; i < MAX_BEADS; i++) {
+                waterBeads.push({
+                    x: (Math.random() - 0.5) * (SHEET_SIZE * 0.82),
+                    z: (Math.random() - 0.5) * (SHEET_SIZE * 0.82),
+                    vx: 0,
+                    vz: 0,
+                    radius: 0.025 + Math.random() * 0.045,
+                    life: Math.random()
+                });
+            }
+
+            // Active concentric rain ripples on the plastic sheet
+            const MAX_RIPPLES = 28;
+            const activeRipples = [];
+
+            function spawnRainRipple(x, z, strength) {
+                if (activeRipples.length >= MAX_RIPPLES) {
+                    activeRipples.shift();
+                }
+                activeRipples.push({
+                    x,
+                    z,
+                    age: 0.0,
+                    maxAge: 1.15 + Math.random() * 0.45,
+                    strength: strength
+                });
+
+                // Also add a subtle temporary elastic dimple where the droplet struck
+                const rSq = 0.32 * 0.32;
+                for (let i = 0; i < vertexCount; i++) {
+                    const dx = baseXZ[i * 2] - x;
+                    const dz = baseXZ[i * 2 + 1] - z;
+                    const dSq = dx * dx + dz * dz;
+                    if (dSq < rSq) {
+                        const falloff = 1.0 - dSq / rSq;
+                        userDentField[i] -= 0.045 * strength * falloff;
+                        rainWetnessField[i] = Math.min(1.0, rainWetnessField[i] + 0.65 * falloff);
+                    }
+                }
+            }
+
+            // Helper to sample approximate sheet height & slope at (x, z) for rain collisions & sliding beads
+            function sampleSheetSurface(x, z) {
+                const half = SHEET_SIZE * 0.5;
+                const u = THREE.MathUtils.clamp((x + half) / SHEET_SIZE, 0, 0.999);
+                const v = THREE.MathUtils.clamp((z + half) / SHEET_SIZE, 0, 0.999);
+                const col = Math.floor(u * GRID_SEGMENTS);
+                const row = Math.floor(v * GRID_SEGMENTS);
+                const idx = row * (GRID_SEGMENTS + 1) + col;
+                const positions = sheetGeo.attributes.position.array;
+                const normals = sheetGeo.attributes.normal.array;
+                return {
+                    y: positions[idx * 3 + 1] || 0.1,
+                    nx: normals[idx * 3] || 0,
+                    ny: normals[idx * 3 + 1] || 1,
+                    nz: normals[idx * 3 + 2] || 0
+                };
+            }
+
+            function updateRainAndBeads(dt) {
+                const intensity = simParams.rainIntensity;
+                if (intensity <= 0.01) {
+                    rainLinesMesh.visible = false;
+                    beadsInstanced.visible = false;
+                    activeRipples.length = 0;
+                    return;
+                }
+
+                rainLinesMesh.visible = true;
+                beadsInstanced.visible = true;
+                rainMat.opacity = 0.15 + intensity * 0.35;
+
+                const activeDropCount = Math.floor(MAX_RAINDROPS * intensity);
+                const posArr = rainGeo.attributes.position.array;
+
+                for (let i = 0; i < MAX_RAINDROPS; i++) {
+                    const drop = raindrops[i];
+                    if (i >= activeDropCount) {
+                        // Hide inactive drops
+                        posArr[i * 6] = posArr[i * 6 + 3] = 0;
+                        posArr[i * 6 + 1] = posArr[i * 6 + 4] = -10;
+                        posArr[i * 6 + 2] = posArr[i * 6 + 5] = 0;
+                        continue;
+                    }
+
+                    drop.y -= drop.speed * dt;
+                    // Slight studio wind slant
+                    drop.x += 0.35 * dt;
+
+                    const surf = sampleSheetSurface(drop.x, drop.z);
+                    if (drop.y <= surf.y) {
+                        // Impact on the taut plastic bedsheet!
+                        if (Math.random() < 0.42) {
+                            spawnRainRipple(drop.x, drop.z, 0.65 + Math.random() * 0.55);
+                        }
+                        // Respawn drop high above
+                        drop.x = (Math.random() - 0.5) * (SHEET_SIZE * 0.9);
+                        drop.z = (Math.random() - 0.5) * (SHEET_SIZE * 0.9);
+                        drop.y = 9.0 + Math.random() * 4.5;
+                    }
+
+                    // Update line segment vertices
+                    posArr[i * 6]     = drop.x;
+                    posArr[i * 6 + 1] = drop.y;
+                    posArr[i * 6 + 2] = drop.z;
+
+                    posArr[i * 6 + 3] = drop.x - 0.02;
+                    posArr[i * 6 + 4] = drop.y + drop.len;
+                    posArr[i * 6 + 5] = drop.z;
+                }
+                rainGeo.attributes.position.needsUpdate = true;
+
+                // Update ripples age
+                for (let r = activeRipples.length - 1; r >= 0; r--) {
+                    activeRipples[r].age += dt;
+                    if (activeRipples[r].age >= activeRipples[r].maxAge) {
+                        activeRipples.splice(r, 1);
+                    }
+                }
+
+                // Update glistening water beads sliding down the stretched contours
+                const activeBeadCount = Math.floor(MAX_BEADS * Math.min(1.0, intensity * 1.2));
+                for (let i = 0; i < MAX_BEADS; i++) {
+                    const bead = waterBeads[i];
+                    if (i >= activeBeadCount) {
+                        dummyBead.scale.set(0, 0, 0);
+                        dummyBead.updateMatrix();
+                        beadsInstanced.setMatrixAt(i, dummyBead.matrix);
+                        continue;
+                    }
+
+                    const surf = sampleSheetSurface(bead.x, bead.z);
+                    // Gravity pulls beads downhill along the normal X/Z slope of the plastic
+                    bead.vx = bead.vx * 0.90 + surf.nx * 1.65 * dt;
+                    bead.vz = bead.vz * 0.90 + surf.nz * 1.65 * dt;
+                    bead.x += bead.vx;
+                    bead.z += bead.vz;
+                    bead.life += dt * (0.25 + intensity * 0.25);
+
+                    const halfBound = SHEET_SIZE * 0.44;
+                    if (bead.life > 1.0 || Math.abs(bead.x) > halfBound || Math.abs(bead.z) > halfBound) {
+                        bead.x = (Math.random() - 0.5) * (SHEET_SIZE * 0.82);
+                        bead.z = (Math.random() - 0.5) * (SHEET_SIZE * 0.82);
+                        bead.vx = 0;
+                        bead.vz = 0;
+                        bead.life = 0.0;
+                    }
+
+                    const updatedSurf = sampleSheetSurface(bead.x, bead.z);
+                    const scaleEnvelope = Math.sin(bead.life * Math.PI);
+                    const rScale = bead.radius * (0.5 + 0.65 * scaleEnvelope);
+
+                    dummyBead.position.set(bead.x, updatedSurf.y + rScale * 0.35, bead.z);
+                    dummyBead.scale.set(rScale, rScale, rScale);
+                    dummyBead.updateMatrix();
+                    beadsInstanced.setMatrixAt(i, dummyBead.matrix);
+                }
+                beadsInstanced.instanceMatrix.needsUpdate = true;
+            }
+
+            // ============================================================================
+            // 6. REAL-TIME MEMBRANE DRAPE, TENSION BRIDGES & WRINKLE SOLVER
+            // ============================================================================
+            function updateMembranePhysics() {
+                // Smoothly interpolate organic form positions/scales
+                for (let f = 0; f < organicForms.length; f++) {
+                    const form = organicForms[f];
+                    form.x += (form.targetX - form.x) * 0.22;
+                    form.z += (form.targetZ - form.z) * 0.22;
+                    form.rx += (form.targetRx - form.rx) * 0.18;
+                    form.rz += (form.targetRz - form.rz) * 0.18;
+                    form.height += (form.targetHeight - form.height) * 0.18;
+
+                    form.mesh.position.set(form.x, form.height * 0.34, form.z);
+                    form.mesh.scale.set(form.rx, form.height, form.rz);
+                }
+
+                const positions = sheetGeo.attributes.position.array;
+                const contacts  = sheetGeo.attributes.aContact.array;
+                const stretches = sheetGeo.attributes.aStretch.array;
+                const wetness   = sheetGeo.attributes.aWetness.array;
+                const skinCols  = sheetGeo.attributes.aSkinColor.array;
+
+                const tension = simParams.tension; // 0.15 to 1.0
+                // Loose sheet bridges widely across gaps; high vacuum tension shrink-wraps tightly around forms
+                const bridgeSpread = 1.95 - tension * 1.22;
+                const shrinkPull   = tension * 0.28;
+                const wrinkleAmp   = simParams.wrinkleIntensity * 0.048;
+
+                const numForms = organicForms.length;
+                const numRipples = activeRipples.length;
+
+                for (let i = 0; i < vertexCount; i++) {
+                    const vx = baseXZ[i * 2];
+                    const vz = baseXZ[i * 2 + 1];
+
+                    // Smoothly relax/interpolate user finger press dents & rain wetness
+                    userDentField[i] += (targetDentField[i] - userDentField[i]) * 0.25;
+                    rainWetnessField[i] *= 0.985;
+
+                    let maxDirectH = 0.0;
+                    let bridgedEnvelope = 0.0;
+                    let weightSum = 0.0001;
+                    let rCol = 0.15, gCol = 0.09, bCol = 0.07;
+
+                    // Track top two closest forms to generate realistic taut tension creases between them
+                    let bestInfluence1 = 0.0;
+                    let bestInfluence2 = 0.0;
+                    let dir1X = 0.0, dir1Z = 0.0;
+                    let dir2X = 0.0, dir2Z = 0.0;
+
+                    for (let f = 0; f < numForms; f++) {
+                        const form = organicForms[f];
+                        const dx = vx - form.x;
+                        const dz = vz - form.z;
+
+                        // Normalized elliptical distance
+                        const nx = dx / form.rx;
+                        const nz = dz / form.rz;
+                        const distSq = nx * nx + nz * nz;
+
+                        // 1. Direct solid contour height of the organic sphere/pillow underneath
+                        if (distSq < 1.0) {
+                            const sphereY = form.height * (0.34 + 0.66 * Math.sqrt(1.0 - distSq));
+                            if (sphereY > maxDirectH) {
+                                maxDirectH = sphereY;
+                            }
+                        }
+
+                        // 2. Stretchy membrane tenting / bridging envelope
+                        const falloff = Math.exp(-distSq / (bridgeSpread * bridgeSpread));
+                        const tentH = form.height * falloff;
+
+                        // Smooth-max (LogSumExp approximation) for taut bridging between peaks
+                        bridgedEnvelope += Math.pow(Math.max(tentH, 0.001), 3.2);
+
+                        // Blend underlying skin color weighted by proximity
+                        const colW = Math.exp(-distSq * 1.35);
+                        rCol += form.color.r * colW;
+                        gCol += form.color.g * colW;
+                        bCol += form.color.b * colW;
+                        weightSum += colW;
+
+                        // Track top 2 pulling forms for tension wrinkle lines
+                        if (falloff > bestInfluence1) {
+                            bestInfluence2 = bestInfluence1;
+                            dir2X = dir1X; dir2Z = dir1Z;
+                            bestInfluence1 = falloff;
+                            dir1X = dx; dir1Z = dz;
+                        } else if (falloff > bestInfluence2) {
+                            bestInfluence2 = falloff;
+                            dir2X = dx; dir2Z = dz;
+                        }
+                    }
+
+                    bridgedEnvelope = Math.pow(bridgedEnvelope, 1.0 / 3.2);
+
+                    // Vacuum suction pulls suspended bridges slightly downward in valleys
+                    const valleySuction = Math.max(0.0, (bridgedEnvelope - maxDirectH)) * shrinkPull;
+                    let sheetY = Math.max(maxDirectH, bridgedEnvelope - valleySuction);
+
+                    // Calculate tension bridge ridges & micro-wrinkles between two neighboring forms
+                    let bridgeTension = 0.0;
+                    if (bestInfluence1 > 0.12 && bestInfluence2 > 0.12) {
+                        const coPull = Math.sqrt(bestInfluence1 * bestInfluence2);
+                        // Cosine ripples perpendicular to the line connecting the two peaks
+                        const crossCoord = (dir1X * dir2Z - dir1Z * dir2X);
+                        const wrinkleWave = Math.sin(crossCoord * 9.5) * 0.5 + 0.5;
+                        const crease = coPull * wrinkleWave * (1.0 - Math.min(1.0, maxDirectH / (sheetY + 0.01)));
+                        sheetY += crease * wrinkleAmp;
+                        bridgeTension = coPull * 1.45 + crease * 0.8;
+                    }
+
+                    // Add concentric raindrop impact ripples across the taut plastic membrane
+                    let rippleDisp = 0.0;
+                    let rippleShimmer = 0.0;
+                    if (numRipples > 0) {
+                        for (let r = 0; r < numRipples; r++) {
+                            const rip = activeRipples[r];
+                            const rdx = vx - rip.x;
+                            const rdz = vz - rip.z;
+                            const dSq = rdx * rdx + rdz * rdz;
+                            if (dSq < 2.2) {
+                                const dist = Math.sqrt(dSq);
+                                const waveRadius = rip.age * 1.65;
+                                const ringDelta = dist - waveRadius;
+                                if (Math.abs(ringDelta) < 0.36) {
+                                    const fade = (1.0 - rip.age / rip.maxAge) * rip.strength;
+                                    const env = Math.exp(-ringDelta * ringDelta * 26.0);
+                                    const wave = Math.cos(ringDelta * 28.0) * env * fade;
+                                    rippleDisp += wave * 0.026;
+                                    rippleShimmer += env * fade * 0.85;
+                                }
+                            }
+                        }
+                    }
+
+                    // Apply user finger press/pull deformation + rain ripples
+                    const minAllowedY = Math.max(0.02, maxDirectH * 0.94);
+                    sheetY = Math.max(minAllowedY, sheetY + userDentField[i] + rippleDisp);
+
+                    // Edge clamping so the plastic sheet is pinned taut at the studio frame perimeter
+                    const edgeDistX = Math.abs(vx) / (SHEET_SIZE * 0.5);
+                    const edgeDistZ = Math.abs(vz) / (SHEET_SIZE * 0.5);
+                    const edgeFactor = Math.max(edgeDistX, edgeDistZ);
+                    if (edgeFactor > 0.82) {
+                        const pinBlend = THREE.MathUtils.smoothstep(edgeFactor, 0.82, 1.0);
+                        sheetY = THREE.MathUtils.lerp(sheetY, 0.03, pinBlend);
+                    }
+
+                    positions[i * 3 + 1] = sheetY;
+
+                    // Contact metric: 1.0 when plastic is pressed directly against the skin form or dented by finger
+                    const gap = Math.abs(sheetY - maxDirectH);
+                    const isTouchingForm = maxDirectH > 0.15 ? Math.exp(-gap * gap * 18.0) : 0.0;
+                    const fingerPressContact = userDentField[i] < -0.02 ? Math.min(1.0, Math.abs(userDentField[i]) * 1.8) : 0.0;
+                    contacts[i] = Math.min(1.0, Math.max(isTouchingForm, fingerPressContact * 0.7));
+
+                    // Stretch metric for specular ridge boosts
+                    stretches[i] = Math.min(1.0, bridgeTension + Math.abs(userDentField[i]) * 1.6 + rippleShimmer * 0.6);
+
+                    // Wetness metric for glossy rain sheen & optical clarity
+                    wetness[i] = Math.min(1.0, simParams.rainIntensity * 0.45 + rainWetnessField[i] + rippleShimmer);
+
+                    // Underlying skin color attribute
+                    skinCols[i * 3]     = rCol / weightSum;
+                    skinCols[i * 3 + 1] = gCol / weightSum;
+                    skinCols[i * 3 + 2] = bCol / weightSum;
+                }
+
+                sheetGeo.attributes.position.needsUpdate = true;
+                sheetGeo.attributes.aContact.needsUpdate = true;
+                sheetGeo.attributes.aStretch.needsUpdate = true;
+                sheetGeo.attributes.aWetness.needsUpdate = true;
+                sheetGeo.attributes.aSkinColor.needsUpdate = true;
+                sheetGeo.computeVertexNormals();
+            }
+
+            // ============================================================================
+            // 7. TOUCHSCREEN & POINTER SCULPTING INTERACTION
+            // ============================================================================
+            const raycaster = new THREE.Raycaster();
+            const pointerNDC = new THREE.Vector2();
+            const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.6);
+            const intersectPt = new THREE.Vector3();
+
+            let isPointerDown = false;
+            let activeForm = null;
+            let lastPointerX = 0;
+            let lastPointerY = 0;
+            let activeTouchId = null;
+
+            // Two-finger pinch/orbit support on touchscreen
+            let initialPinchDist = null;
+            let initialRadius = camSpherical.radius;
+
+            function getNormalizedPointer(clientX, clientY) {
+                pointerNDC.x = (clientX / window.innerWidth) * 2 - 1;
+                pointerNDC.y = -(clientY / window.innerHeight) * 2 + 1;
+            }
+
+            function getWorldIntersection(clientX, clientY) {
+                getNormalizedPointer(clientX, clientY);
+                raycaster.setFromCamera(pointerNDC, camera);
+                const hit = raycaster.ray.intersectPlane(dragPlane, intersectPt);
+                return hit ? intersectPt : null;
+            }
+
+            function findNearestForm(wx, wz) {
+                let best = null;
+                let bestDist = Infinity;
+                for (let i = 0; i < organicForms.length; i++) {
+                    const f = organicForms[i];
+                    const d = Math.hypot(wx - f.x, wz - f.z);
+                    if (d < Math.max(f.rx, f.rz) * 1.15 && d < bestDist) {
+                        bestDist = d;
+                        best = f;
+                    }
+                }
+                return best;
+            }
+
+            function sculptPlasticDent(wx, wz, deltaDepth, radius) {
+                const rSq = radius * radius;
+                for (let i = 0; i < vertexCount; i++) {
+                    const vx = baseXZ[i * 2];
+                    const vz = baseXZ[i * 2 + 1];
+                    const dx = vx - wx;
+                    const dz = vz - wz;
+                    const dSq = dx * dx + dz * dz;
+                    if (dSq < rSq) {
+                        // Create a smooth indentation surrounded by a subtle taut rim ring
+                        const u = dSq / rSq;
+                        const profile = (1.0 - u) * (1.0 - u) - 0.22 * u * (1.0 - u);
+                        targetDentField[i] = THREE.MathUtils.clamp(
+                            targetDentField[i] + deltaDepth * profile,
+                            -0.95,
+                            0.65
+                        );
+                    }
+                }
+            }
+
+            function handlePointerDown(clientX, clientY) {
+                isPointerDown = true;
+                lastPointerX = clientX;
+                lastPointerY = clientY;
+
+                // Fade out floating hint after first interaction
+                const hintEl = document.getElementById('touch-hint');
+                if (hintEl) hintEl.style.opacity = '0';
+
+                const worldPt = getWorldIntersection(clientX, clientY);
+                if (!worldPt) return;
+
+                const clampedX = THREE.MathUtils.clamp(worldPt.x, -3.8, 3.8);
+                const clampedZ = THREE.MathUtils.clamp(worldPt.z, -3.8, 3.8);
+
+                if (currentMode === 'move') {
+                    activeForm = findNearestForm(clampedX, clampedZ);
+                    if (activeForm) {
+                        // Sync custom color picker to selected form
+                        document.getElementById('custom-skin-picker').value = '#' + activeForm.color.getHexString();
+                    } else {
+                        // If user tapped empty plastic in Move mode, let them press a quick tactile crease
+                        sculptPlasticDent(clampedX, clampedZ, -0.32, 1.35);
+                    }
+                } else if (currentMode === 'press') {
+                    sculptPlasticDent(clampedX, clampedZ, -0.42, 1.45);
+                } else if (currentMode === 'inflate') {
+                    const existing = findNearestForm(clampedX, clampedZ);
+                    if (existing && Math.hypot(clampedX - existing.x, clampedZ - existing.z) < 0.85) {
+                        // Inflate existing form
+                        existing.targetRx = Math.min(2.3, existing.targetRx + 0.16);
+                        existing.targetRz = Math.min(2.3, existing.targetRz + 0.16);
+                        existing.targetHeight = Math.min(2.15, existing.targetHeight + 0.18);
+                        activeForm = existing;
+                    } else {
+                        // Spawn a new warm skin-toned organic form underneath the plastic
+                        const pal = PALETTES[currentPaletteKey];
+                        const randomHex = pal[Math.floor(Math.random() * pal.length)];
+                        activeForm = addOrganicForm(
+                            clampedX,
+                            clampedZ,
+                            0.95 + Math.random() * 0.45,
+                            0.95 + Math.random() * 0.45,
+                            1.05 + Math.random() * 0.35,
+                            randomHex
+                        );
+                    }
+                }
+            }
+
+            function handlePointerMove(clientX, clientY) {
+                if (!isPointerDown) return;
+
+                const dx = clientX - lastPointerX;
+                const dy = clientY - lastPointerY;
+                lastPointerX = clientX;
+                lastPointerY = clientY;
+
+                if (currentMode === 'orbit') {
+                    camSpherical.targetTheta -= dx * 0.0075;
+                    camSpherical.targetPhi = THREE.MathUtils.clamp(
+                        camSpherical.targetPhi - dy * 0.0065,
+                        0.15,
+                        1.22
+                    );
+                    return;
+                }
+
+                const worldPt = getWorldIntersection(clientX, clientY);
+                if (!worldPt) return;
+
+                const clampedX = THREE.MathUtils.clamp(worldPt.x, -3.7, 3.7);
+                const clampedZ = THREE.MathUtils.clamp(worldPt.z, -3.7, 3.7);
+
+                if (currentMode === 'move') {
+                    if (activeForm) {
+                        activeForm.targetX = clampedX;
+                        activeForm.targetZ = clampedZ;
+                    } else {
+                        sculptPlasticDent(clampedX, clampedZ, -0.18, 1.25);
+                    }
+                } else if (currentMode === 'press') {
+                    sculptPlasticDent(clampedX, clampedZ, -0.24, 1.35);
+                } else if (currentMode === 'inflate' && activeForm) {
+                    activeForm.targetX = THREE.MathUtils.lerp(activeForm.targetX, clampedX, 0.35);
+                    activeForm.targetZ = THREE.MathUtils.lerp(activeForm.targetZ, clampedZ, 0.35);
+                    activeForm.targetHeight = Math.min(2.2, activeForm.targetHeight + 0.012);
+                    activeForm.targetRx = Math.min(2.3, activeForm.targetRx + 0.01);
+                    activeForm.targetRz = Math.min(2.3, activeForm.targetRz + 0.01);
+                }
+            }
+
+            function handlePointerUp() {
+                isPointerDown = false;
+                activeForm = null;
+                activeTouchId = null;
+                initialPinchDist = null;
+            }
+
+            // Mouse listeners
+            const domElem = renderer.domElement;
+            domElem.addEventListener('mousedown', (e) => {
+                if (e.button === 2 || e.shiftKey) {
+                    // Right-click or Shift+drag orbits camera in any mode
+                    const prevMode = currentMode;
+                    currentMode = 'orbit';
+                    handlePointerDown(e.clientX, e.clientY);
+                    const restore = () => {
+                        currentMode = prevMode;
+                        window.removeEventListener('mouseup', restore);
+                    };
+                    window.addEventListener('mouseup', restore);
+                } else {
+                    handlePointerDown(e.clientX, e.clientY);
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                handlePointerMove(e.clientX, e.clientY);
+            });
+
+            window.addEventListener('mouseup', handlePointerUp);
+            domElem.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            // Wheel zoom
+            domElem.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camSpherical.targetRadius = THREE.MathUtils.clamp(
+                    camSpherical.targetRadius + e.deltaY * 0.008,
+                    7.5,
+                    22.0
+                );
+            }, { passive: false });
+
+            // Touchscreen listeners (Single-finger sculpt + Two-finger orbit/zoom)
+            domElem.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    const t = e.touches[0];
+                    activeTouchId = t.identifier;
+                    handlePointerDown(t.clientX, t.clientY);
+                } else if (e.touches.length >= 2) {
+                    // Two fingers: switch smoothly to pinch-zoom & camera tilt
+                    isPointerDown = false;
+                    activeForm = null;
+                    const t1 = e.touches[0];
+                    const t2 = e.touches[1];
+                    initialPinchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                    initialRadius = camSpherical.targetRadius;
+                    lastPointerX = (t1.clientX + t2.clientX) * 0.5;
+                    lastPointerY = (t1.clientY + t2.clientY) * 0.5;
+                }
+            }, { passive: false });
+
+            domElem.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1 && initialPinchDist === null) {
+                    const t = e.touches[0];
+                    handlePointerMove(t.clientX, t.clientY);
+                } else if (e.touches.length >= 2) {
+                    const t1 = e.touches[0];
+                    const t2 = e.touches[1];
+                    const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                    if (initialPinchDist > 10) {
+                        const scale = initialPinchDist / dist;
+                        camSpherical.targetRadius = THREE.MathUtils.clamp(initialRadius * scale, 7.5, 22.0);
+                    }
+                    const midX = (t1.clientX + t2.clientX) * 0.5;
+                    const midY = (t1.clientY + t2.clientY) * 0.5;
+                    const dx = midX - lastPointerX;
+                    const dy = midY - lastPointerY;
+                    lastPointerX = midX;
+                    lastPointerY = midY;
+
+                    camSpherical.targetTheta -= dx * 0.007;
+                    camSpherical.targetPhi = THREE.MathUtils.clamp(camSpherical.targetPhi - dy * 0.006, 0.15, 1.22);
+                }
+            }, { passive: false });
+
+            domElem.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 0) {
+                    handlePointerUp();
+                }
+            }, { passive: false });
+
+            // ============================================================================
+            // 8. UI CONTROLS, PRESETS & SNAPSHOT EXPORT
+            // ============================================================================
+            const modeButtons = document.querySelectorAll('.tool-btn');
+            const statusSubtext = document.getElementById('status-subtext');
+            const modeDescriptions = {
+                move: 'Drag warm forms underneath — watch the taut plastic slide & tent',
+                press: 'Press & drag directly on the plastic sheet to indent tension creases',
+                inflate: 'Tap or hold to grow new skin-toned contours under the membrane',
+                orbit: 'Drag to tilt studio camera & glide specular highlights across the sheet'
+            };
+
+            modeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modeButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentMode = btn.dataset.mode;
+                    statusSubtext.textContent = modeDescriptions[currentMode];
+                });
+            });
+
+            // Drawer open/close
+            const drawer = document.getElementById('studio-drawer');
+            const btnToggleDrawer = document.getElementById('btn-toggle-drawer');
+            const btnCloseDrawer = document.getElementById('btn-close-drawer');
+            let drawerOpen = window.innerWidth > 768; // Auto-collapse on small phones so canvas is unobstructed
+
+            function updateDrawerState() {
+                if (drawerOpen) {
+                    drawer.classList.remove('translate-x-[120%]', 'opacity-0', 'pointer-events-none');
+                    drawer.classList.add('translate-x-0', 'opacity-100');
+                } else {
+                    drawer.classList.add('translate-x-[120%]', 'opacity-0', 'pointer-events-none');
+                    drawer.classList.remove('translate-x-0', 'opacity-100');
+                }
+            }
+            updateDrawerState();
+
+            btnToggleDrawer.addEventListener('click', () => {
+                drawerOpen = !drawerOpen;
+                updateDrawerState();
+            });
+            btnCloseDrawer.addEventListener('click', () => {
+                drawerOpen = false;
+                updateDrawerState();
+            });
+
+            // Plastic Material Presets
+            const presetButtons = document.querySelectorAll('.preset-btn');
+            const sliderOpacity = document.getElementById('slider-opacity');
+            const valOpacity = document.getElementById('val-opacity');
+
+            const PLASTIC_PRESETS = {
+                milky: {
+                    opacity: 42,
+                    sheetTint: 0xfff7f2,
+                    specTint: 0xffffff,
+                    gloss: 88.0,
+                    irid: 0.14
+                },
+                clear: {
+                    opacity: 14,
+                    sheetTint: 0xffffff,
+                    specTint: 0xffffff,
+                    gloss: 160.0,
+                    irid: 0.08
+                },
+                amber: {
+                    opacity: 36,
+                    sheetTint: 0xf7cfa6,
+                    specTint: 0xffe8cc,
+                    gloss: 115.0,
+                    irid: 0.12
+                },
+                pearl: {
+                    opacity: 48,
+                    sheetTint: 0xfceee9,
+                    specTint: 0xfff0f5,
+                    gloss: 95.0,
+                    irid: 0.52
+                }
+            };
+
+            presetButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    presetButtons.forEach(b => {
+                        b.className = 'preset-btn text-left px-3 py-2 rounded-xl text-xs bg-stone-800/50 border border-stone-700/50 text-stone-300 hover:bg-stone-800 transition';
+                    });
+                    btn.className = 'preset-btn active text-left px-3 py-2 rounded-xl text-xs bg-amber-500/20 border border-amber-400/50 text-amber-100 font-medium transition';
+
+                    const p = PLASTIC_PRESETS[btn.dataset.preset];
+                    if (p) {
+                        simParams.milkyOpacity = p.opacity / 100;
+                        sliderOpacity.value = p.opacity;
+                        valOpacity.textContent = p.opacity + '%';
+
+                        plasticShaderMat.uniforms.uMilkyOpacity.value = simParams.milkyOpacity;
+                        plasticShaderMat.uniforms.uSheetTint.value.setHex(p.sheetTint);
+                        plasticShaderMat.uniforms.uSpecularTint.value.setHex(p.specTint);
+                        plasticShaderMat.uniforms.uGlossiness.value = p.gloss;
+                        plasticShaderMat.uniforms.uIridescence.value = p.irid;
+                    }
+                });
+            });
+
+            // Skin Tone Palette Selector
+            const paletteBtns = document.querySelectorAll('#palette-selector button');
+            paletteBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    paletteBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentPaletteKey = btn.dataset.palette;
+
+                    const pal = PALETTES[currentPaletteKey];
+                    organicForms.forEach((form, idx) => {
+                        const hex = pal[idx % pal.length];
+                        form.color.set(hex);
+                        form.mesh.material.color.set(hex);
+                        form.mesh.material.emissive.set(hex).multiplyScalar(0.28).add(new THREE.Color(0x240903));
+                    });
+                });
+            });
+
+            // Custom Skin Tone Color Picker
+            document.getElementById('custom-skin-picker').addEventListener('input', (e) => {
+                const hex = e.target.value;
+                const target = activeForm || organicForms[organicForms.length - 1];
+                if (target) {
+                    target.color.set(hex);
+                    target.mesh.material.color.set(hex);
+                    target.mesh.material.emissive.set(hex).multiplyScalar(0.28).add(new THREE.Color(0x240903));
+                }
+            });
+
+            // Sliders
+            const sliderTension = document.getElementById('slider-tension');
+            const valTension = document.getElementById('val-tension');
+            sliderTension.addEventListener('input', (e) => {
+                const v = parseInt(e.target.value, 10);
+                valTension.textContent = v + '%';
+                simParams.tension = v / 100;
+            });
+
+            sliderOpacity.addEventListener('input', (e) => {
+                const v = parseInt(e.target.value, 10);
+                valOpacity.textContent = v + '%';
+                simParams.milkyOpacity = v / 100;
+                plasticShaderMat.uniforms.uMilkyOpacity.value = simParams.milkyOpacity;
+            });
+
+            const sliderWrinkles = document.getElementById('slider-wrinkles');
+            const valWrinkles = document.getElementById('val-wrinkles');
+            sliderWrinkles.addEventListener('input', (e) => {
+                const v = parseInt(e.target.value, 10);
+                valWrinkles.textContent = v + '%';
+                simParams.wrinkleIntensity = v / 100;
+            });
+
+            const sliderLight = document.getElementById('slider-light');
+            const valLight = document.getElementById('val-light');
+            sliderLight.addEventListener('input', (e) => {
+                const deg = parseInt(e.target.value, 10);
+                valLight.textContent = deg + '°';
+                const rad = THREE.MathUtils.degToRad(deg);
+                const r = 9.0;
+                keyLight.position.set(Math.cos(rad) * r, 11.0, Math.sin(rad) * r);
+                rimLight.position.set(-Math.cos(rad) * r, 6.5, -Math.sin(rad) * r);
+                plasticShaderMat.uniforms.uKeyLightPos.value.copy(keyLight.position);
+                plasticShaderMat.uniforms.uRimLightPos.value.copy(rimLight.position);
+            });
+
+            const sliderRain = document.getElementById('slider-rain');
+            const valRain = document.getElementById('val-rain');
+            const btnRainToggle = document.getElementById('btn-rain-toggle');
+            const rainToggleLabel = document.getElementById('rain-toggle-label');
+            let savedRainLevel = 65;
+
+            function syncRainUI(percentVal) {
+                simParams.rainIntensity = percentVal / 100;
+                sliderRain.value = percentVal;
+                valRain.textContent = percentVal + '%';
+                if (percentVal > 0) {
+                    rainToggleLabel.textContent = 'Rain: On';
+                    btnRainToggle.classList.add('bg-amber-500/20', 'border-amber-400/40', 'text-amber-200');
+                } else {
+                    rainToggleLabel.textContent = 'Rain: Off';
+                    btnRainToggle.classList.remove('bg-amber-500/20', 'border-amber-400/40', 'text-amber-200');
+                }
+            }
+
+            sliderRain.addEventListener('input', (e) => {
+                const v = parseInt(e.target.value, 10);
+                if (v > 0) savedRainLevel = v;
+                syncRainUI(v);
+            });
+
+            btnRainToggle.addEventListener('click', () => {
+                if (simParams.rainIntensity > 0) {
+                    syncRainUI(0);
+                } else {
+                    syncRainUI(savedRainLevel || 65);
+                }
+            });
+
+            // Re-Drape / Randomize Organic Forms
+            document.getElementById('btn-randomize').addEventListener('click', () => {
+                const pal = PALETTES[currentPaletteKey];
+                organicForms.forEach((f, i) => {
+                    f.targetX = (Math.random() - 0.5) * 4.4;
+                    f.targetZ = (Math.random() - 0.5) * 3.8;
+                    f.targetRx = 0.95 + Math.random() * 0.85;
+                    f.targetRz = 0.95 + Math.random() * 0.85;
+                    f.targetHeight = 0.95 + Math.random() * 0.72;
+                    const hex = pal[i % pal.length];
+                    f.color.set(hex);
+                    f.mesh.material.color.set(hex);
+                });
+            });
+
+            // Smooth Plastic Dents
+            document.getElementById('btn-clear-dents').addEventListener('click', () => {
+                targetDentField.fill(0);
+            });
+
+            // Reset Sculpture
+            document.getElementById('btn-reset-all').addEventListener('click', () => {
+                targetDentField.fill(0);
+                userDentField.fill(0);
+                populateInitialForms();
+            });
+
+            // Snapshot Export
+            const toastMsg = document.getElementById('toast-msg');
+            document.getElementById('btn-snapshot').addEventListener('click', () => {
+                renderer.render(scene, camera);
+                const dataURL = renderer.domElement.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = 'tactile-membrane-sculpture.png';
+                link.href = dataURL;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                toastMsg.classList.remove('opacity-0');
+                toastMsg.classList.add('opacity-100');
+                setTimeout(() => {
+                    toastMsg.classList.remove('opacity-100');
+                    toastMsg.classList.add('opacity-0');
+                }, 2400);
+            });
+
+            // Window Resize
+            window.addEventListener('resize', () => {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                adjustCameraForAspect();
+            });
+
+            // ============================================================================
+            // 9. MAIN ANIMATION LOOP
+            // ============================================================================
+            const clock = new THREE.Clock();
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const dt = Math.min(clock.getDelta(), 0.05);
+                const elapsed = clock.elapsedTime;
+
+                // Subtle organic breathing motion on forms underneath the plastic sheet
+                for (let i = 0; i < organicForms.length; i++) {
+                    const f = organicForms[i];
+                    if (f !== activeForm) {
+                        const breathe = Math.sin(elapsed * 1.4 + i * 1.1) * 0.0012;
+                        f.height += breathe;
+                    }
+                }
+
+                // Update camera spherical orbit
+                camSpherical.phi += (camSpherical.targetPhi - camSpherical.phi) * 0.14;
+                camSpherical.theta += (camSpherical.targetTheta - camSpherical.theta) * 0.14;
+                camSpherical.radius += (camSpherical.targetRadius - camSpherical.radius) * 0.14;
+
+                camera.position.x = camSpherical.radius * Math.sin(camSpherical.phi) * Math.sin(camSpherical.theta);
+                camera.position.y = camSpherical.radius * Math.cos(camSpherical.phi);
+                camera.position.z = camSpherical.radius * Math.sin(camSpherical.phi) * Math.cos(camSpherical.theta);
+                camera.lookAt(0, 0.35, 0);
+
+                // Update falling raindrops, surface ripples, and sliding water beads
+                updateRainAndBeads(dt);
+
+                // Recompute taut plastic bedsheet deformation & normals
+                updateMembranePhysics();
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        };
+    </script>
+</body>
+</html>
