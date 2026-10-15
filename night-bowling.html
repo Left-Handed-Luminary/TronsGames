@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Night Bowling — A Calming Sleep Game</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    body {
+      font-family: 'Quicksand', system-ui, -apple-system, sans-serif;
+      background-color: #04060c;
+      color: #c5c2d4;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* Calming Sleep Colors Palette (Blacklight Cosmic Edition) */
+    :root {
+      --color-midnight-base: #04060c;
+      --color-deep-indigo: #0b101f;
+      --color-dusky-heather: #171a2e;
+      --color-sleepy-lavender: #8275a3;
+      --color-muted-lilac: #6a5c88;
+      --color-sage-moss: #273932;
+      --color-deep-pasture: #111a16;
+      --color-candlelight: #cda36e;
+      --color-soft-amber: #b2834c;
+      --color-river-slate: #1c313f;
+      --color-cloud-cream: #9f9dae;
+      --color-uv-neon: #a855f7;
+      --color-uv-pink: #f43f5e;
+      --color-uv-cyan: #06b6d4;
+    }
+
+    /* Soft breathing glow */
+    @keyframes breatheGlow {
+      0%, 100% {
+        opacity: 0.25;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.55;
+        transform: scale(1.05);
+      }
+    }
+
+    .breath-halo {
+      animation: breatheGlow 8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(130, 117, 163, 0.3);
+      border-radius: 4px;
+    }
+
+    .glass-panel {
+      background: rgba(9, 13, 24, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(130, 117, 163, 0.16);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.55);
+    }
+
+    .frame-box {
+      border: 1px solid rgba(130, 117, 163, 0.16);
+      transition: all 0.3s ease;
+    }
+
+    .frame-box.active {
+      border-color: #cda36e;
+      box-shadow: 0 0 10px rgba(205, 163, 110, 0.3);
+      background: rgba(205, 163, 110, 0.08);
+    }
+  </style>
+</head>
+<body class="w-screen h-screen m-0 p-0 overflow-hidden flex flex-col justify-between">
+
+  <!-- TOP HEADER & LIGHT SCOREBOARD -->
+  <header class="w-full z-20 px-3 pt-2 pb-1 flex flex-col items-center pointer-events-auto">
+    <!-- Header Title Bar -->
+    <div class="w-full max-w-4xl flex items-center justify-between mb-1 text-xs sm:text-sm">
+      <div class="flex items-center gap-2">
+        <span class="text-base sm:text-lg opacity-85">🌙</span>
+        <div>
+          <h1 class="font-bold tracking-wide text-[#d4d1e2] text-sm sm:text-base leading-tight">Night Bowling</h1>
+          <p class="text-[10px] sm:text-xs text-[#a855f7] leading-none">✨ Blacklight Pins &bull; Bumpers &bull; Guaranteed Pickups</p>
+        </div>
+      </div>
+
+      <!-- Quick Action Badges -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button id="dimmerBtn" class="glass-panel px-2.5 py-1 rounded-full text-[11px] sm:text-xs text-[#cda36e] hover:bg-[#171a2e] transition flex items-center gap-1" title="Adjust bedtime screen brightness">
+          <span>🔆</span>
+          <span id="dimmerStatusText" class="hidden xs:inline">Dim: Bedtime</span>
+        </button>
+
+        <button id="countSheepBtn" class="glass-panel px-2.5 py-1 rounded-full text-[11px] sm:text-xs text-[#d4d1e2] hover:bg-[#171a2e] transition flex items-center gap-1.5" title="Count a sheep jump over the fence">
+          <span>🐑</span>
+          <span class="hidden xs:inline">Count Sheep</span>
+          <span id="sheepCounterBadge" class="bg-[#273932] text-[#d4d1e2] px-1.5 py-0.2 rounded-full font-bold text-[10px]">0</span>
+        </button>
+
+        <button id="paletteBtn" class="glass-panel px-2.5 py-1 rounded-full text-[11px] sm:text-xs text-[#cda36e] hover:bg-[#171a2e] transition flex items-center gap-1" title="Colors that promote sleep">
+          <span>🎨</span>
+          <span class="hidden sm:inline">Sleep Colors</span>
+        </button>
+
+        <button id="resetGameBtn" class="glass-panel px-2.5 py-1 rounded-full text-[11px] sm:text-xs text-[#8275a3] hover:bg-[#171a2e] transition flex items-center gap-1" title="Start a fresh 10-frame game">
+          <span>🔄</span>
+          <span class="hidden sm:inline">New Game</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 10-Frame Bowling Scoreboard -->
+    <div class="w-full max-w-4xl glass-panel rounded-xl p-1.5 sm:p-2 shadow-lg">
+      <div id="scoreboardGrid" class="grid grid-cols-10 gap-1 text-center select-none text-[10px] sm:text-xs">
+        <!-- Frames 1 to 10 dynamically injected -->
+      </div>
+      
+      <!-- Bowling Status Bar -->
+      <div class="flex items-center justify-between mt-1 pt-1 border-t border-[rgba(130,117,163,0.15)] text-[10px] sm:text-xs text-[#8275a3]">
+        <div class="flex items-center gap-3">
+          <span>Frame <strong id="currentFrameText" class="text-[#cda36e]">1</strong>/10</span>
+          <span>Ball <strong id="currentBallText" class="text-[#cda36e]">1</strong></span>
+          <span id="pinsStandingText" class="hidden sm:inline">Pins: <strong class="text-[#c5c2d4]">10 standing</strong></span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span>Strikes: <strong id="strikesCount" class="text-[#cda36e]">0</strong></span>
+          <span>Spares: <strong id="sparesCount" class="text-[#a855f7]">0</strong></span>
+          <span class="text-xs sm:text-sm font-semibold text-[#d4d1e2]">Score: <strong id="totalScoreText" class="text-[#cda36e] text-sm sm:text-base">0</strong></span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- INTERACTIVE GAME CANVAS -->
+  <main class="relative flex-1 w-full h-full overflow-hidden">
+    <canvas id="gameCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+    <!-- Bedtime Dimmer Overlay (Lowers overall brightness for bedtime) -->
+    <div id="nightDimOverlay" class="absolute inset-0 pointer-events-none bg-black/35 transition-opacity duration-500"></div>
+
+    <!-- Dedicated Ball Controls & Swipe Prompt at Bottom -->
+    <div class="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-auto">
+      <div class="flex items-center gap-2 mb-1">
+        <button id="rollBallBtn" class="glass-panel px-4 py-1.5 rounded-full text-xs font-semibold text-[#cda36e] hover:bg-[#171a2e] transition flex items-center gap-2 shadow-lg active:scale-95" title="Roll ball slowly down the lane">
+          <span>🎳</span>
+          <span>Slow Roll</span>
+        </button>
+      </div>
+
+      <!-- Gentle Swipe Guide Prompt -->
+      <div id="swipePrompt" class="pointer-events-none transition-opacity duration-700 flex flex-col items-center text-center">
+        <div class="glass-panel px-3.5 py-1 rounded-full text-[11px] text-[#c5c2d4] flex items-center gap-2 shadow-md">
+          <span class="text-xs">👆</span>
+          <span>Swipe or Tap Ball to Bowl &bull; Bumpers &amp; Easy Strikes</span>
+        </div>
+        <div class="text-[9px] text-[#8275a3] mt-0.5 tracking-wider opacity-75">Blacklight cosmic pins &bull; Guaranteed spare pickups</div>
+      </div>
+    </div>
+
+    <!-- Notification Toast for Strikes / Spares / Sheep -->
+    <div id="sleepNotification" class="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none opacity-0 transition-all duration-700 glass-panel px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium text-[#cda36e] flex items-center gap-2 z-30 shadow-xl">
+      <span id="notificationIcon">✨</span>
+      <span id="notificationText">Strike!</span>
+    </div>
+
+    <!-- Floating Breathing Guide Bar (Subtle & Sleep Inducing) -->
+    <div class="absolute bottom-2 right-3 pointer-events-none text-[10px] text-[#8275a3] opacity-60 hidden md:block">
+      <span id="breathingText">Breathe in gently...</span>
+    </div>
+  </main>
+
+  <!-- SLEEP PALETTE & INFORMATION MODAL -->
+  <div id="paletteModal" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+    <div class="glass-panel w-full max-w-md rounded-2xl p-5 border border-[#8275a3]/30 shadow-2xl relative text-[#d4d1e2]">
+      <div class="flex items-center justify-between pb-3 border-b border-[#8275a3]/20">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🌙</span>
+          <h2 class="text-base font-bold text-[#cda36e]">Sleep Science Palette</h2>
+        </div>
+        <button id="closePaletteBtn" class="w-7 h-7 rounded-full bg-[#0b101f] text-[#8275a3] hover:text-white flex items-center justify-center text-sm transition">✕</button>
+      </div>
+
+      <p class="text-xs text-[#8275a3] my-3 leading-relaxed">
+        This game combines bedtime relaxation with cosmic blacklight features:
+      </p>
+
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center gap-2.5 p-2 rounded-lg bg-[#0b101f]/80 border border-[#0b101f]">
+          <div class="w-5 h-5 rounded-md bg-[#a855f7] shadow-[0_0_8px_#a855f7]"></div>
+          <div>
+            <strong class="text-[#d4d1e2]">Blacklight UV Pins &amp; Bumpers</strong>
+            <p class="text-[11px] text-[#8275a3]">Cosmic glow with bumpers along the gutters so every shot stays on lane.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 p-2 rounded-lg bg-[#0b101f]/80 border border-[#0b101f]">
+          <div class="w-5 h-5 rounded-md bg-[#cda36e]"></div>
+          <div>
+            <strong class="text-[#d4d1e2]">Easy Strikes &amp; Guaranteed Pickups</strong>
+            <p class="text-[11px] text-[#8275a3]">High strike generosity, and non-strikes always pick up the spare on roll 2.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 p-2 rounded-lg bg-[#0b101f]/80 border border-[#0b101f]">
+          <div class="w-5 h-5 rounded-md bg-[#04060c] border border-[#8275a3]/30"></div>
+          <div>
+            <strong class="text-[#d4d1e2]">Midnight Obsidian &amp; Deep Indigo</strong>
+            <p class="text-[11px] text-[#8275a3]">Signals nighttime to the brain and gently lowers heart rate.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 p-2 rounded-lg bg-[#0b101f]/80 border border-[#0b101f]">
+          <div class="w-5 h-5 rounded-md bg-[#273932]"></div>
+          <div>
+            <strong class="text-[#d4d1e2]">Muted Meadow Sage &amp; Moss</strong>
+            <p class="text-[11px] text-[#8275a3]">Relieves ocular strain with soothing low-frequency natural greens.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-[#8275a3]/20 flex justify-end">
+        <button id="okPaletteBtn" class="px-4 py-1.5 rounded-lg bg-[#273932] hover:bg-[#344d44] text-xs font-semibold text-[#d4d1e2] transition">Got it, sleep tight</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME COMPLETE MODAL -->
+  <div id="gameOverModal" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+    <div class="glass-panel w-full max-w-sm rounded-2xl p-5 border border-[#8275a3]/30 shadow-2xl text-center text-[#d4d1e2]">
+      <div class="text-3xl mb-1">🌙✨</div>
+      <h2 class="text-lg font-bold text-[#cda36e]">Game Complete</h2>
+      <p class="text-xs text-[#8275a3] mt-0.5">A glorious 10-frame game! May peaceful sleep find you</p>
+
+      <div class="my-4 py-3 px-4 rounded-xl bg-[#0b101f]/90 border border-[#8275a3]/20 flex justify-around items-center">
+        <div>
+          <div class="text-[10px] text-[#8275a3] uppercase">Final Score</div>
+          <div id="modalFinalScore" class="text-2xl font-bold text-[#cda36e]">220</div>
+        </div>
+        <div class="h-8 w-[1px] bg-[#8275a3]/20"></div>
+        <div>
+          <div class="text-[10px] text-[#8275a3] uppercase">Strikes / Spares</div>
+          <div id="modalStrikesSpares" class="text-sm font-semibold text-[#d4d1e2]">6 / 4</div>
+        </div>
+        <div class="h-8 w-[1px] bg-[#8275a3]/20"></div>
+        <div>
+          <div class="text-[10px] text-[#8275a3] uppercase">Sheep Jumped</div>
+          <div id="modalSheepCounted" class="text-sm font-semibold text-[#d4d1e2]">5</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 mt-4">
+        <button id="modalPlayAgainBtn" class="flex-1 py-2 rounded-xl bg-[#273932] hover:bg-[#344d44] text-xs font-bold text-[#d4d1e2] transition shadow-md">
+          Bowl Again
+        </button>
+        <button id="modalWatchMeadowBtn" class="flex-1 py-2 rounded-xl glass-panel hover:bg-[#171a2e] text-xs text-[#8275a3] transition">
+          Rest in Meadow
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* NIGHT BOWLING — CALMING SLEEP GAME ENGINE
+       Features:
+       - Blacklight UV pins glowing phosphorescent neon violet & hot pink
+       - Cosmic glowing bumpers along gutters preventing any gutter balls
+       - Easy strike pocket assist and wide domino chain reaction
+       - Guaranteed spare pickup if roll 1 was not a strike!
+       - Slow-motion unhurried roll physics and lowered bedtime brightness
+    */
+
+    // --- GAME STATE & SCORING ---
+    const TOTAL_FRAMES = 10;
+    let currentFrame = 0; // 0 to 9
+    let currentRoll = 0;  // 0 or 1 (or 2 in 10th frame)
+    let rolls = Array.from({ length: TOTAL_FRAMES }, () => []);
+    let cumulativeScores = Array(TOTAL_FRAMES).fill(null);
+    let totalScore = 0;
+    let isGameOver = false;
+    let sheepCounted = 0;
+    let strikesTotal = 0;
+    let sparesTotal = 0;
+
+    // Bumper flash timers
+    let bumperFlashLeft = 0;
+    let bumperFlashRight = 0;
+
+    // --- BRIGHTNESS / DIMMER SYSTEM ---
+    const dimLevels = [
+      { name: "Dim: Bedtime", opacity: "0.38" },
+      { name: "Dim: Pitch Black", opacity: "0.62" },
+      { name: "Dim: Gentle", opacity: "0.15" }
+    ];
+    let currentDimIndex = 0;
+
+    function cycleBrightness() {
+      currentDimIndex = (currentDimIndex + 1) % dimLevels.length;
+      const overlay = document.getElementById('nightDimOverlay');
+      const text = document.getElementById('dimmerStatusText');
+      if (overlay) overlay.style.backgroundColor = `rgba(0, 0, 0, ${dimLevels[currentDimIndex].opacity})`;
+      if (text) text.textContent = dimLevels[currentDimIndex].name;
+      showNotification(`🔆 ${dimLevels[currentDimIndex].name}`, "🌙");
+    }
+
+    // --- CANVAS & DISPLAY SETUP ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let width = 0;
+    let height = 0;
+    let pixelRatio = 1;
+
+    function resizeCanvas() {
+      pixelRatio = window.devicePixelRatio || 1;
+      width = canvas.parentElement.clientWidth;
+      height = canvas.parentElement.clientHeight;
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // --- SCENERY ELEMENTS ---
+
+    // 1. Stars
+    const STARS_COUNT = 70;
+    const stars = [];
+    for (let i = 0; i < STARS_COUNT; i++) {
+      stars.push({
+        x: Math.random(),
+        y: Math.random() * 0.52,
+        radius: Math.random() * 1.3 + 0.5,
+        baseAlpha: Math.random() * 0.22 + 0.12,
+        twinkleSpeed: Math.random() * 0.0012 + 0.0006,
+        twinklePhase: Math.random() * Math.PI * 2
+      });
+    }
+
+    let shootingStar = null;
+    function maybeSpawnShootingStar() {
+      if (!shootingStar && Math.random() < 0.002) {
+        shootingStar = {
+          x: Math.random() * 0.6 + 0.1,
+          y: Math.random() * 0.25 + 0.05,
+          length: Math.random() * 50 + 30,
+          dx: 1.4,
+          dy: 0.5,
+          progress: 0,
+          maxProgress: 110
+        };
+      }
+    }
+
+    // 2. Swirly Sleepy Clouds
+    const clouds = [
+      { x: 0.15, y: 0.12, scale: 1.1, speed: 0.010, swirls: 3 },
+      { x: 0.65, y: 0.22, scale: 0.9, speed: 0.008, swirls: 4 },
+      { x: 0.40, y: 0.08, scale: 1.3, speed: 0.012, swirls: 3 },
+      { x: 0.90, y: 0.16, scale: 0.85, speed: 0.009, swirls: 3 }
+    ];
+
+    // 3. Crescent Moon
+    const moon = {
+      x: 0.82,
+      y: 0.18,
+      radius: 34,
+      haloPulse: 0
+    };
+
+    // 4. River
+    let riverTime = 0;
+
+    // 5. Pasture Sheep
+    const pastureSheep = [
+      { x: 0.12, y: 0.48, scale: 0.85, state: 'standing', timer: 300, chew: 0, zzz: [], bob: 0 },
+      { x: 0.25, y: 0.56, scale: 1.05, state: 'lying', timer: 450, chew: 0, zzz: [], bob: 0 },
+      { x: 0.08, y: 0.66, scale: 1.25, state: 'standing', timer: 200, chew: 0, zzz: [], bob: 0 },
+      { x: 0.88, y: 0.52, scale: 0.90, state: 'lying', timer: 380, chew: 0, zzz: [], bob: 0 },
+      { x: 0.76, y: 0.62, scale: 1.15, state: 'standing', timer: 500, chew: 0, zzz: [], bob: 0 },
+      { x: 0.91, y: 0.72, scale: 1.30, state: 'standing', timer: 320, chew: 0, zzz: [], bob: 0 }
+    ];
+
+    // 6. Fence and Rare Jumping Sheep
+    const fence = {
+      xRatio: 0.18,
+      yRatio: 0.42,
+      widthRatio: 0.14
+    };
+
+    let jumpingSheep = null;
+    let jumpCooldown = 700;
+
+    function triggerSheepJump(manual = false) {
+      if (jumpingSheep) return;
+      jumpingSheep = {
+        progress: 0,
+        startXRatio: 0.02,
+        endXRatio: 0.38,
+        fenceXRatio: fence.xRatio + fence.widthRatio * 0.5,
+        baseYRatio: fence.yRatio + 0.04,
+        scale: 0.85
+      };
+      if (manual) {
+        showNotification("🐑 A fluffy sheep runs to the fence...", "✨");
+      }
+    }
+
+    // 7. Fireflies
+    const fireflies = [];
+    for (let i = 0; i < 16; i++) {
+      fireflies.push({
+        x: Math.random(),
+        y: Math.random() * 0.45 + 0.45,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.015 + 0.008,
+        radius: Math.random() * 1.3 + 1.0
+      });
+    }
+
+    // --- 3D PERSPECTIVE BOWLING LANE & PINS ENGINE ---
+
+    const MAX_Z = 920;
+    const PIN_DECK_Z = 780;
+    const LANE_HALF_WIDTH = 55;
+
+    function project3D(x, y, z) {
+      const horizonY = height * 0.38;
+      const bottomY = height * 0.84;
+      const laneLenPx = bottomY - horizonY;
+      
+      const normZ = Math.min(Math.max(z / MAX_Z, 0), 1);
+      const perspectiveScale = 1 / (1 + normZ * 3.4);
+
+      const screenY = bottomY - (normZ * laneLenPx);
+      const laneCenterScreenX = width * 0.5;
+      const screenX = laneCenterScreenX + x * perspectiveScale * 3.8;
+
+      return {
+        x: screenX,
+        y: screenY - (y * perspectiveScale * 3.8),
+        scale: perspectiveScale
+      };
+    }
+
+    // The 10 Bowling Pins setup
+    const PIN_CONFIGS = [
+      { id: 1,  x:   0, z: PIN_DECK_Z },
+      { id: 2,  x: -16, z: PIN_DECK_Z + 28 },
+      { id: 3,  x:  16, z: PIN_DECK_Z + 28 },
+      { id: 4,  x: -32, z: PIN_DECK_Z + 56 },
+      { id: 5,  x:   0, z: PIN_DECK_Z + 56 },
+      { id: 6,  x:  32, z: PIN_DECK_Z + 56 },
+      { id: 7,  x: -48, z: PIN_DECK_Z + 84 },
+      { id: 8,  x: -16, z: PIN_DECK_Z + 84 },
+      { id: 9,  x:  16, z: PIN_DECK_Z + 84 },
+      { id: 10, x:  48, z: PIN_DECK_Z + 84 }
+    ];
+
+    let pins = [];
+    function resetPinRack(keepStandingOnly = false) {
+      if (!keepStandingOnly) {
+        pins = PIN_CONFIGS.map(cfg => ({
+          ...cfg,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          tiltAngle: 0,
+          tiltDirX: 0,
+          wobblePhase: 0,
+          wobbleAmp: 0,
+          isKnocked: false,
+          isCleared: false,
+          radius: 9.5
+        }));
+      } else {
+        pins.forEach(pin => {
+          if (pin.isKnocked) {
+            pin.isCleared = true;
+          } else {
+            pin.vx = 0;
+            pin.vy = 0;
+            pin.vz = 0;
+            pin.tiltAngle = 0;
+            pin.wobbleAmp = 0;
+          }
+        });
+      }
+      updatePinsCountDisplay();
+    }
+
+    // The Bowling Ball
+    const ball = {
+      x: 0,
+      y: 0,
+      z: 0,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      radius: 16.5,
+      rollDistance: 0,
+      rotationAngle: 0,
+      state: 'ready',
+      inGutter: false,
+      settleTimer: 0
+    };
+
+    function resetBallToFoulLine() {
+      ball.x = 0;
+      ball.y = 0;
+      ball.z = 0;
+      ball.vx = 0;
+      ball.vy = 0;
+      ball.vz = 0;
+      ball.state = 'ready';
+      ball.inGutter = false;
+      ball.settleTimer = 0;
+      ball.rollDistance = 0;
+    }
+
+    // Swipe & Touch Interaction
+    let isPointerDown = false;
+    let pointerStartX = 0;
+    let pointerStartY = 0;
+    let pointerCurrentX = 0;
+    let pointerCurrentY = 0;
+    let pointerStartTime = 0;
+    let isAimDragging = false;
+
+    function handlePointerStart(clientX, clientY) {
+      if (ball.state !== 'ready' || isGameOver) return;
+      isPointerDown = true;
+      pointerStartX = clientX;
+      pointerStartY = clientY;
+      pointerCurrentX = clientX;
+      pointerCurrentY = clientY;
+      pointerStartTime = performance.now();
+      isAimDragging = true;
+
+      const prompt = document.getElementById('swipePrompt');
+      if (prompt) prompt.style.opacity = '0.3';
+    }
+
+    function handlePointerMove(clientX, clientY) {
+      if (!isPointerDown || ball.state !== 'ready') return;
+      pointerCurrentX = clientX;
+      pointerCurrentY = clientY;
+
+      const dy = pointerCurrentY - pointerStartY;
+      if (Math.abs(dy) < 35) {
+        const dx = pointerCurrentX - pointerStartX;
+        const targetX = (dx / (width * 0.4)) * (LANE_HALF_WIDTH * 0.85);
+        ball.x = Math.max(-LANE_HALF_WIDTH * 0.8, Math.min(LANE_HALF_WIDTH * 0.8, targetX));
+      }
+    }
+
+    function handlePointerEnd() {
+      if (!isPointerDown || ball.state !== 'ready') {
+        isPointerDown = false;
+        isAimDragging = false;
+        return;
+      }
+      isPointerDown = false;
+      isAimDragging = false;
+
+      const deltaX = pointerCurrentX - pointerStartX;
+      const deltaY = pointerStartY - pointerCurrentY;
+      const elapsed = Math.max(performance.now() - pointerStartTime, 40);
+
+      // Simple Tap on Ball directly rolls it slow!
+      if (Math.hypot(deltaX, deltaY) < 15 && elapsed < 400) {
+        launchBowlingBallSlow(0);
+        return;
+      }
+
+      // Upward swipe -> slow, calm roll
+      if (deltaY > 15) {
+        const lateralAngle = (deltaX / Math.max(deltaY, 60)) * 0.8;
+        launchBowlingBallSlow(lateralAngle);
+      }
+    }
+
+    function launchBowlingBallSlow(lateralAngle = 0) {
+      if (ball.state !== 'ready' || isGameOver) return;
+      ball.state = 'rolling';
+      ball.vz = 3.6; // Gentle slow motion
+      ball.vx = Math.max(-1.1, Math.min(1.1, lateralAngle));
+      ball.vy = 0;
+
+      const prompt = document.getElementById('swipePrompt');
+      if (prompt) prompt.style.opacity = '0';
+    }
+
+    // Listeners
+    canvas.addEventListener('mousedown', e => handlePointerStart(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => handlePointerMove(e.clientX, e.clientY));
+    window.addEventListener('mouseup', handlePointerEnd);
+
+    canvas.addEventListener('touchstart', e => {
+      if (e.touches.length > 0) {
+        handlePointerStart(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', e => {
+      if (e.touches.length > 0) {
+        handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchend', handlePointerEnd);
+
+    window.addEventListener('keydown', e => {
+      if (ball.state !== 'ready' || isGameOver) return;
+      if (e.key === 'ArrowLeft') {
+        ball.x = Math.max(-LANE_HALF_WIDTH * 0.8, ball.x - 4);
+      } else if (e.key === 'ArrowRight') {
+        ball.x = Math.min(LANE_HALF_WIDTH * 0.8, ball.x + 4);
+      } else if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'Enter') {
+        e.preventDefault();
+        launchBowlingBallSlow((Math.random() - 0.5) * 0.2);
+      }
+    });
+
+    // --- BOWLING PHYSICS WITH BUMPERS, EASY STRIKES & GUARANTEED PICKUPS ---
+    function updateBowlingPhysics() {
+      // Decay bumper flashes
+      if (bumperFlashLeft > 0) bumperFlashLeft--;
+      if (bumperFlashRight > 0) bumperFlashRight--;
+
+      if (ball.state === 'rolling') {
+        ball.z += ball.vz;
+        ball.x += ball.vx;
+        ball.rollDistance += ball.vz;
+        ball.rotationAngle += ball.vz * 0.045;
+
+        // 1. BOWLING BUMPERS (Active on left and right edges)
+        // Eliminates all gutter balls by bouncing the ball back into the lane!
+        const BUMPER_INNER_X = LANE_HALF_WIDTH - 8;
+        if (ball.x <= -BUMPER_INNER_X) {
+          ball.x = -BUMPER_INNER_X + 1.2;
+          ball.vx = Math.abs(ball.vx) * 0.75 + 0.45; // Ricochet inward towards pins
+          bumperFlashLeft = 24;
+        } else if (ball.x >= BUMPER_INNER_X) {
+          ball.x = BUMPER_INNER_X - 1.2;
+          ball.vx = -Math.abs(ball.vx) * 0.75 - 0.45; // Ricochet inward towards pins
+          bumperFlashRight = 24;
+        }
+
+        // 2. EASY STRIKE ASSIST (On Roll 1 when all 10 pins are standing)
+        // Subtle magnetic pull toward the pocket for effortless strikes!
+        const standingPins = pins.filter(p => !p.isKnocked && !p.isCleared);
+        const isStrikeAttempt = (standingPins.length === 10);
+
+        if (isStrikeAttempt && ball.z > 350 && ball.z < (PIN_DECK_Z - 10)) {
+          // Pocket guidance toward center/headpin
+          ball.vx += (0 - ball.x) * 0.022;
+        }
+
+        // 3. GUARANTEED SPARE PICKUP ASSIST (On Roll 2 if user did not strike)
+        // If user didn't get strike, roll 2 will ALWAYS pick up every standing pin!
+        const isPickupAttempt = (!isStrikeAttempt && standingPins.length > 0);
+        if (isPickupAttempt && ball.z > 300) {
+          // Guide ball directly toward the center of remaining standing pins
+          const avgX = standingPins.reduce((acc, p) => acc + p.x, 0) / standingPins.length;
+          ball.vx += (avgX - ball.x) * 0.038;
+        }
+
+        // 4. PIN HIT DETECTION & DOMINO KNOCKDOWNS
+        if (ball.z >= (PIN_DECK_Z - 30) && ball.z <= (MAX_Z + 10)) {
+          // Check collision with pins
+          let struckAnyPin = false;
+
+          pins.forEach(pin => {
+            if (!pin.isKnocked && !pin.isCleared) {
+              const dx = ball.x - pin.x;
+              const dz = ball.z - pin.z;
+              const dist = Math.hypot(dx, dz);
+              // Generous hit radius for easy strikes
+              const hitRadius = ball.radius + pin.radius + 8;
+
+              if (dist < hitRadius) {
+                struckAnyPin = true;
+                pin.isKnocked = true;
+                const angle = Math.atan2(dz, dx);
+                const impactSpeed = ball.vz * 0.55;
+
+                pin.vx = -Math.cos(angle) * impactSpeed;
+                pin.vz = Math.sin(angle) * impactSpeed;
+                pin.tiltAngle = 0.28;
+                pin.tiltDirX = pin.vx > 0 ? 1 : -1;
+              }
+            }
+          });
+
+          // EASY STRIKE CASCADE:
+          // If on roll 1 and any front pin is struck, cascade to all 10 pins for an easy strike!
+          if (isStrikeAttempt && struckAnyPin) {
+            pins.forEach((p, idx) => {
+              if (!p.isKnocked && !p.isCleared) {
+                p.isKnocked = true;
+                p.vx = (p.x * 0.08) + (Math.random() - 0.5) * 0.6;
+                p.vz = 0.65 + Math.random() * 0.4;
+                p.tiltAngle = 0.25;
+                p.tiltDirX = p.vx > 0 ? 1 : -1;
+              }
+            });
+          }
+
+          // GUARANTEED SPARE PICKUP:
+          // If on roll 2, when ball reaches pin deck, ALWAYS knock down ALL remaining pins!
+          if (isPickupAttempt && (struckAnyPin || ball.z >= PIN_DECK_Z)) {
+            pins.forEach(p => {
+              if (!p.isKnocked && !p.isCleared) {
+                p.isKnocked = true;
+                p.vx = (p.x - ball.x) * 0.07 + (Math.random() - 0.5) * 0.5;
+                p.vz = 0.6 + Math.random() * 0.4;
+                p.tiltAngle = 0.26;
+                p.tiltDirX = p.vx > 0 ? 1 : -1;
+              }
+            });
+          }
+        }
+
+        // End of lane reached
+        if (ball.z > MAX_Z) {
+          ball.state = 'settling';
+          ball.settleTimer = 160;
+        }
+      }
+
+      // Pin Physics & Slow Domino Chain Reactions
+      pins.forEach(pin => {
+        if (pin.isKnocked && !pin.isCleared) {
+          pin.x += pin.vx;
+          pin.z += pin.vz;
+          pin.vx *= 0.94;
+          pin.vz *= 0.94;
+          pin.tiltAngle = Math.min(Math.PI * 0.48, pin.tiltAngle + 0.035);
+
+          // Pin-to-pin collisions
+          pins.forEach(other => {
+            if (other.id !== pin.id && !other.isKnocked && !other.isCleared) {
+              const dx = pin.x - other.x;
+              const dz = pin.z - other.z;
+              const dist = Math.hypot(dx, dz);
+              if (dist < (pin.radius + other.radius + 12) && (Math.hypot(pin.vx, pin.vz) > 0.3)) {
+                other.isKnocked = true;
+                const speed = Math.hypot(pin.vx, pin.vz) * 0.75;
+                const angle = Math.atan2(-dz, -dx);
+                other.vx = Math.cos(angle) * speed;
+                other.vz = Math.sin(angle) * speed;
+                other.tiltAngle = 0.22;
+                other.tiltDirX = other.vx > 0 ? 1 : -1;
+              }
+            }
+          });
+        }
+      });
+
+      if (ball.state === 'settling') {
+        ball.settleTimer--;
+        if (ball.settleTimer <= 0) {
+          completeCurrentRoll();
+        }
+      }
+    }
+
+    // --- SCOREBOARD RULES & ROLL PROCESSING ---
+    function completeCurrentRoll() {
+      let newlyKnocked = 0;
+      pins.forEach(pin => {
+        if (pin.isKnocked && !pin.isCleared) {
+          newlyKnocked++;
+        }
+      });
+
+      rolls[currentFrame].push(newlyKnocked);
+
+      const isFrame10 = (currentFrame === 9);
+      const isStrike = (currentRoll === 0 && newlyKnocked === 10);
+      const isSpare = (currentRoll === 1 && (rolls[currentFrame][0] + newlyKnocked === 10));
+
+      if (isStrike) {
+        strikesTotal++;
+        document.getElementById('strikesCount').textContent = strikesTotal;
+        showNotification("✦ COSMIC STRIKE! ✦", "⭐");
+      } else if (isSpare) {
+        sparesTotal++;
+        document.getElementById('sparesCount').textContent = sparesTotal;
+        showNotification("✦ Guaranteed Spare Picked Up! ✦", "✨");
+      } else if (newlyKnocked === 0) {
+        showNotification("Gently rolls forward...", "🌙");
+      }
+
+      recalculateBowlingScore();
+      renderScoreboard();
+
+      if (!isFrame10) {
+        if (isStrike || currentRoll === 1) {
+          currentFrame++;
+          currentRoll = 0;
+          resetPinRack(false);
+          resetBallToFoulLine();
+        } else {
+          currentRoll = 1;
+          resetPinRack(true);
+          resetBallToFoulLine();
+        }
+      } else {
+        if (currentRoll === 0) {
+          currentRoll = 1;
+          resetPinRack(isStrike ? false : true);
+          resetBallToFoulLine();
+        } else if (currentRoll === 1) {
+          const firstRoll = rolls[9][0];
+          const secondRoll = rolls[9][1];
+          const earnsBonusRoll = (firstRoll === 10) || (firstRoll + secondRoll === 10);
+
+          if (earnsBonusRoll) {
+            currentRoll = 2;
+            resetPinRack(false);
+            resetBallToFoulLine();
+          } else {
+            finishGame();
+          }
+        } else {
+          finishGame();
+        }
+      }
+
+      updateStatusDisplay();
+    }
+
+    function recalculateBowlingScore() {
+      let runningScore = 0;
+      cumulativeScores.fill(null);
+
+      for (let f = 0; f < TOTAL_FRAMES; f++) {
+        const frameRolls = rolls[f];
+        if (frameRolls.length === 0) break;
+
+        if (f < 9) {
+          if (frameRolls[0] === 10) {
+            const nextRolls = getNextRolls(f, 2);
+            if (nextRolls.length === 2) {
+              runningScore += 10 + nextRolls[0] + nextRolls[1];
+              cumulativeScores[f] = runningScore;
+            } else {
+              break;
+            }
+          } else if (frameRolls.length === 2) {
+            const frameSum = frameRolls[0] + frameRolls[1];
+            if (frameSum === 10) {
+              const nextRolls = getNextRolls(f, 1);
+              if (nextRolls.length === 1) {
+                runningScore += 10 + nextRolls[0];
+                cumulativeScores[f] = runningScore;
+              } else {
+                break;
+              }
+            } else {
+              runningScore += frameSum;
+              cumulativeScores[f] = runningScore;
+            }
+          } else {
+            break;
+          }
+        } else {
+          let frame10Sum = 0;
+          for (let r of frameRolls) frame10Sum += r;
+
+          const isStrikeOrSpare = (frameRolls[0] === 10) || (frameRolls.length >= 2 && frameRolls[0] + frameRolls[1] === 10);
+          if (isStrikeOrSpare) {
+            if (frameRolls.length === 3) {
+              runningScore += frame10Sum;
+              cumulativeScores[f] = runningScore;
+            }
+          } else if (frameRolls.length === 2) {
+            runningScore += frame10Sum;
+            cumulativeScores[f] = runningScore;
+          }
+        }
+      }
+
+      let latestScore = 0;
+      for (let s of cumulativeScores) {
+        if (s !== null) latestScore = s;
+      }
+      totalScore = latestScore;
+      document.getElementById('totalScoreText').textContent = totalScore;
+    }
+
+    function getNextRolls(frameIndex, countNeeded) {
+      const result = [];
+      for (let f = frameIndex + 1; f < TOTAL_FRAMES; f++) {
+        for (let r of rolls[f]) {
+          result.push(r);
+          if (result.length === countNeeded) return result;
+        }
+      }
+      return result;
+    }
+
+    function updatePinsCountDisplay() {
+      const standing = pins.filter(p => !p.isKnocked && !p.isCleared).length;
+      const el = document.getElementById('pinsStandingText');
+      if (el) el.innerHTML = `Pins: <strong class="text-[#c5c2d4]">${standing} standing</strong>`;
+    }
+
+    function updateStatusDisplay() {
+      if (isGameOver) {
+        document.getElementById('currentFrameText').textContent = 'Done';
+        document.getElementById('currentBallText').textContent = '-';
+        return;
+      }
+      document.getElementById('currentFrameText').textContent = currentFrame + 1;
+      document.getElementById('currentBallText').textContent = currentRoll + 1;
+      updatePinsCountDisplay();
+    }
+
+    function renderScoreboard() {
+      const grid = document.getElementById('scoreboardGrid');
+      grid.innerHTML = '';
+
+      for (let f = 0; f < TOTAL_FRAMES; f++) {
+        const frameBox = document.createElement('div');
+        frameBox.className = `frame-box rounded-lg p-1 flex flex-col justify-between ${f === currentFrame && !isGameOver ? 'active' : 'bg-[#0b101f]/75'}`;
+
+        const numLabel = document.createElement('div');
+        numLabel.className = 'text-[9px] text-[#8275a3] font-semibold mb-0.5';
+        numLabel.textContent = f + 1;
+        frameBox.appendChild(numLabel);
+
+        const rollsRow = document.createElement('div');
+        rollsRow.className = 'flex justify-center gap-0.5';
+
+        const fRolls = rolls[f] || [];
+        if (f < 9) {
+          const b1 = document.createElement('div');
+          b1.className = 'w-3.5 sm:w-4 h-3.5 sm:h-4 flex items-center justify-center border border-[rgba(130,117,163,0.18)] rounded text-[9px] font-bold';
+          const b2 = document.createElement('div');
+          b2.className = 'w-3.5 sm:w-4 h-3.5 sm:h-4 flex items-center justify-center border border-[rgba(130,117,163,0.18)] rounded text-[9px] font-bold';
+
+          if (fRolls.length > 0) {
+            if (fRolls[0] === 10) {
+              b1.textContent = '';
+              b2.textContent = 'X';
+              b2.className += ' text-[#cda36e]';
+            } else {
+              b1.textContent = fRolls[0] === 0 ? '-' : fRolls[0];
+            }
+          }
+          if (fRolls.length > 1) {
+            if (fRolls[0] + fRolls[1] === 10) {
+              b2.textContent = '/';
+              b2.className += ' text-[#a855f7]';
+            } else {
+              b2.textContent = fRolls[1] === 0 ? '-' : fRolls[1];
+            }
+          }
+          rollsRow.appendChild(b1);
+          rollsRow.appendChild(b2);
+        } else {
+          for (let r = 0; r < 3; r++) {
+            const b = document.createElement('div');
+            b.className = 'w-3 sm:w-3.5 h-3.5 sm:h-4 flex items-center justify-center border border-[rgba(130,117,163,0.18)] rounded text-[8px] font-bold';
+            if (fRolls[r] !== undefined) {
+              const val = fRolls[r];
+              if (val === 10) {
+                b.textContent = 'X';
+                b.className += ' text-[#cda36e]';
+              } else if (r > 0 && fRolls[r-1] !== 10 && fRolls[r-1] + val === 10) {
+                b.textContent = '/';
+                b.className += ' text-[#a855f7]';
+              } else {
+                b.textContent = val === 0 ? '-' : val;
+              }
+            }
+            rollsRow.appendChild(b);
+          }
+        }
+        frameBox.appendChild(rollsRow);
+
+        const scoreLabel = document.createElement('div');
+        scoreLabel.className = 'text-[10px] sm:text-xs font-bold text-[#d4d1e2] mt-1 h-3 sm:h-4';
+        scoreLabel.textContent = cumulativeScores[f] !== null ? cumulativeScores[f] : '';
+        frameBox.appendChild(scoreLabel);
+
+        grid.appendChild(frameBox);
+      }
+    }
+
+    function finishGame() {
+      isGameOver = true;
+      document.getElementById('modalFinalScore').textContent = totalScore;
+      document.getElementById('modalStrikesSpares').textContent = `${strikesTotal} / ${sparesTotal}`;
+      document.getElementById('modalSheepCounted').textContent = sheepCounted;
+
+      const modal = document.getElementById('gameOverModal');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+    }
+
+    function startNewGame() {
+      currentFrame = 0;
+      currentRoll = 0;
+      rolls = Array.from({ length: TOTAL_FRAMES }, () => []);
+      cumulativeScores = Array(TOTAL_FRAMES).fill(null);
+      totalScore = 0;
+      strikesTotal = 0;
+      sparesTotal = 0;
+      isGameOver = false;
+
+      document.getElementById('strikesCount').textContent = '0';
+      document.getElementById('sparesCount').textContent = '0';
+      document.getElementById('totalScoreText').textContent = '0';
+
+      const modal = document.getElementById('gameOverModal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+
+      resetPinRack(false);
+      resetBallToFoulLine();
+      renderScoreboard();
+      updateStatusDisplay();
+
+      const prompt = document.getElementById('swipePrompt');
+      if (prompt) prompt.style.opacity = '1';
+
+      showNotification("✨ Fresh tranquil game begun", "🌙");
+    }
+
+    function showNotification(text, icon = "✨") {
+      const toast = document.getElementById('sleepNotification');
+      const toastText = document.getElementById('notificationText');
+      const toastIcon = document.getElementById('notificationIcon');
+      if (!toast || !toastText || !toastIcon) return;
+
+      toastText.textContent = text;
+      toastIcon.textContent = icon;
+      toast.classList.remove('opacity-0');
+      toast.classList.add('opacity-100');
+
+      clearTimeout(toast._timeout);
+      toast._timeout = setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0');
+      }, 3000);
+    }
+
+    // --- ANIMATION & DRAWING ROUTINES ---
+
+    function drawStars(time) {
+      stars.forEach(s => {
+        const alpha = s.baseAlpha + Math.sin(time * s.twinkleSpeed + s.twinklePhase) * 0.12;
+        ctx.fillStyle = `rgba(197, 194, 212, ${Math.max(0.06, alpha)})`;
+        ctx.beginPath();
+        ctx.arc(s.x * width, s.y * height, s.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      maybeSpawnShootingStar();
+      if (shootingStar) {
+        shootingStar.progress++;
+        const p = shootingStar.progress / shootingStar.maxProgress;
+        const currentX = (shootingStar.x * width) + (shootingStar.progress * shootingStar.dx);
+        const currentY = (shootingStar.y * height) + (shootingStar.progress * shootingStar.dy);
+        const tailX = currentX - (shootingStar.length * Math.cos(0.35));
+        const tailY = currentY - (shootingStar.length * Math.sin(0.35));
+
+        const grad = ctx.createLinearGradient(tailX, tailY, currentX, currentY);
+        grad.addColorStop(0, 'rgba(205, 163, 110, 0)');
+        grad.addColorStop(1, `rgba(205, 163, 110, ${(1 - p) * 0.5})`);
+
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(tailX, tailY);
+        ctx.lineTo(currentX, currentY);
+        ctx.stroke();
+
+        if (shootingStar.progress >= shootingStar.maxProgress) {
+          shootingStar = null;
+        }
+      }
+    }
+
+    function drawCrescentMoon(time) {
+      const mx = moon.x * width;
+      const my = moon.y * height;
+      const r = moon.radius;
+
+      const breathPhase = (time * 0.0006) % (Math.PI * 2);
+      const breathPulse = Math.sin(breathPhase) * 4;
+
+      const haloGrad = ctx.createRadialGradient(mx, my, r * 0.5, mx, my, r * 2.5 + breathPulse);
+      haloGrad.addColorStop(0, 'rgba(205, 163, 110, 0.16)');
+      haloGrad.addColorStop(0.6, 'rgba(130, 117, 163, 0.06)');
+      haloGrad.addColorStop(1, 'rgba(11, 16, 31, 0)');
+
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(mx, my, r * 2.5 + breathPulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#cda36e';
+      ctx.fill();
+
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(mx - (r * 0.45), my - (r * 0.15), r * 0.88, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = 'rgba(178, 131, 76, 0.35)';
+      ctx.beginPath();
+      ctx.arc(mx + (r * 0.35), my - (r * 0.1), r * 0.14, 0, Math.PI * 2);
+      ctx.arc(mx + (r * 0.42), my + (r * 0.25), r * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawSwirlyClouds(time) {
+      clouds.forEach(c => {
+        c.x += c.speed * 0.002;
+        if (c.x > 1.25) c.x = -0.25;
+
+        const cx = c.x * width;
+        const cy = c.y * height;
+        const s = c.scale * (width / 900);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        ctx.fillStyle = 'rgba(106, 92, 136, 0.08)';
+        ctx.strokeStyle = 'rgba(130, 117, 163, 0.12)';
+        ctx.lineWidth = 1.3;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 40 * s, 0, Math.PI * 2);
+        ctx.arc(35 * s, -12 * s, 32 * s, 0, Math.PI * 2);
+        ctx.arc(70 * s, 4 * s, 28 * s, 0, Math.PI * 2);
+        ctx.arc(-30 * s, 8 * s, 26 * s, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        for (let i = 0; i < c.swirls; i++) {
+          const offsetX = (i * 28 - 25) * s;
+          const offsetY = Math.sin(time * 0.0008 + i) * 5 * s;
+          
+          for (let a = 0; a < Math.PI * 2.8; a += 0.22) {
+            const rad = (a * 4.2 + 3) * s;
+            const px = offsetX + Math.cos(a) * rad;
+            const py = offsetY + Math.sin(a) * rad;
+            if (a === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+        }
+        ctx.stroke();
+
+        ctx.restore();
+      });
+    }
+
+    function drawRiver(time) {
+      riverTime += 0.005;
+      const horizonY = height * 0.38;
+
+      ctx.save();
+      const riverGrad = ctx.createLinearGradient(width * 0.65, horizonY, width * 0.95, height * 0.75);
+      riverGrad.addColorStop(0, '#0f1a22');
+      riverGrad.addColorStop(0.5, '#172733');
+      riverGrad.addColorStop(1, '#233a4a');
+
+      ctx.fillStyle = riverGrad;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.62, horizonY + 8);
+      ctx.bezierCurveTo(width * 0.68, horizonY + 40, width * 0.72, height * 0.52, width * 0.85, height * 0.62);
+      ctx.bezierCurveTo(width * 0.92, height * 0.68, width * 0.98, height * 0.72, width * 1.05, height * 0.78);
+      ctx.lineTo(width * 1.05, height * 0.88);
+      ctx.bezierCurveTo(width * 0.88, height * 0.82, width * 0.75, height * 0.70, width * 0.66, height * 0.58);
+      ctx.bezierCurveTo(width * 0.58, height * 0.48, width * 0.56, horizonY + 25, width * 0.58, horizonY + 8);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(205, 163, 110, 0.12)';
+      ctx.lineWidth = 1;
+      for (let w = 0; w < 4; w++) {
+        const offset = ((riverTime * 14 + w * 28) % 110);
+        const yPos = horizonY + 25 + offset * 2.2;
+        if (yPos < height * 0.78) {
+          const xCenter = width * 0.64 + (offset * 2.4);
+          ctx.beginPath();
+          ctx.moveTo(xCenter - 15, yPos);
+          ctx.quadraticCurveTo(xCenter, yPos - 2.5, xCenter + 18, yPos);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawHills(time) {
+      const horizonY = height * 0.38;
+
+      ctx.fillStyle = '#0a1017';
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY + 30);
+      ctx.quadraticCurveTo(width * 0.28, horizonY - 18, width * 0.60, horizonY + 25);
+      ctx.quadraticCurveTo(width * 0.85, horizonY - 8, width, horizonY + 20);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.fill();
+
+      drawRiver(time);
+
+      ctx.fillStyle = '#111c17';
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY + 60);
+      ctx.bezierCurveTo(width * 0.22, horizonY + 15, width * 0.45, horizonY + 80, width * 0.75, horizonY + 45);
+      ctx.quadraticCurveTo(width * 0.90, horizonY + 25, width, horizonY + 55);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.fill();
+
+      ctx.fillStyle = '#172721';
+      ctx.beginPath();
+      ctx.moveTo(0, horizonY + 100);
+      ctx.quadraticCurveTo(width * 0.30, horizonY + 70, width * 0.55, horizonY + 110);
+      ctx.quadraticCurveTo(width * 0.82, horizonY + 80, width, horizonY + 115);
+      ctx.lineTo(width, height);
+      ctx.lineTo(0, height);
+      ctx.fill();
+
+      ctx.strokeStyle = '#23372f';
+      ctx.lineWidth = 1.3;
+      for (let g = 0; g < 14; g++) {
+        const gx = ((g * 67 + 30) % width);
+        const gy = horizonY + 95 + ((g * 43) % (height * 0.45));
+        const sway = Math.sin(time * 0.0016 + g) * 4;
+        ctx.beginPath();
+        ctx.moveTo(gx, gy);
+        ctx.quadraticCurveTo(gx + sway, gy - 8, gx + sway * 1.3, gy - 14);
+        ctx.stroke();
+      }
+
+      drawWoodenFence();
+    }
+
+    function drawWoodenFence() {
+      const fx = fence.xRatio * width;
+      const fy = fence.yRatio * height;
+      const fw = fence.widthRatio * width;
+      const posts = 4;
+      const postWidth = 4.5;
+      const postHeight = 24;
+
+      ctx.save();
+      ctx.fillStyle = '#29231e';
+      ctx.strokeStyle = '#1a1613';
+      ctx.lineWidth = 1;
+
+      ctx.fillRect(fx - 4, fy + 6, fw + 8, 3);
+      ctx.fillRect(fx - 4, fy + 14, fw + 8, 3);
+
+      for (let i = 0; i < posts; i++) {
+        const px = fx + (i / (posts - 1)) * fw;
+        ctx.fillRect(px - postWidth * 0.5, fy, postWidth, postHeight);
+        ctx.fillStyle = '#382f29';
+        ctx.fillRect(px - postWidth * 0.5, fy, 1.2, postHeight);
+        ctx.fillStyle = '#29231e';
+      }
+      ctx.restore();
+    }
+
+    function drawSheep(sheep, time) {
+      const sx = sheep.x * width;
+      const sy = sheep.y * height;
+      const s = sheep.scale;
+
+      ctx.save();
+      ctx.translate(sx, sy);
+
+      sheep.timer--;
+      if (sheep.timer <= 0) {
+        if (sheep.state === 'standing') {
+          sheep.state = 'transition_down';
+          sheep.animProgress = 0;
+        } else if (sheep.state === 'lying') {
+          sheep.state = 'transition_up';
+          sheep.animProgress = 0;
+        }
+        sheep.timer = Math.floor(Math.random() * 450 + 350);
+      }
+
+      if (sheep.state === 'transition_down') {
+        sheep.animProgress += 0.02;
+        if (sheep.animProgress >= 1) {
+          sheep.state = 'lying';
+          sheep.animProgress = 1;
+        }
+      } else if (sheep.state === 'transition_up') {
+        sheep.animProgress += 0.02;
+        if (sheep.animProgress >= 1) {
+          sheep.state = 'standing';
+          sheep.animProgress = 1;
+        }
+      }
+
+      let legHeight = 12 * s;
+      let bodyYOffset = 0;
+      if (sheep.state === 'lying') {
+        legHeight = 3 * s;
+        bodyYOffset = 7 * s;
+      } else if (sheep.state === 'transition_down') {
+        legHeight = (12 - sheep.animProgress * 9) * s;
+        bodyYOffset = sheep.animProgress * 7 * s;
+      } else if (sheep.state === 'transition_up') {
+        legHeight = (3 + sheep.animProgress * 9) * s;
+        bodyYOffset = (1 - sheep.animProgress) * 7 * s;
+      }
+
+      ctx.fillStyle = '#121118';
+      if (sheep.state === 'standing') {
+        ctx.fillRect(-12 * s, 6 * s, 3.5 * s, legHeight);
+        ctx.fillRect(-4 * s, 6 * s, 3.5 * s, legHeight);
+        ctx.fillRect(4 * s, 6 * s, 3.5 * s, legHeight);
+        ctx.fillRect(10 * s, 6 * s, 3.5 * s, legHeight);
+      } else {
+        ctx.fillRect(-10 * s, bodyYOffset + 8 * s, 4 * s, 3 * s);
+        ctx.fillRect(8 * s, bodyYOffset + 8 * s, 4 * s, 3 * s);
+      }
+
+      ctx.fillStyle = '#9490a0';
+      const puffs = [
+        { x: 0, y: 0, r: 16 },
+        { x: -10, y: -4, r: 13 },
+        { x: 10, y: -3, r: 14 },
+        { x: -14, y: 4, r: 11 },
+        { x: 12, y: 5, r: 12 },
+        { x: 0, y: 6, r: 14 }
+      ];
+
+      ctx.beginPath();
+      puffs.forEach(p => {
+        ctx.arc(p.x * s, (p.y + bodyYOffset) * s, p.r * s, 0, Math.PI * 2);
+      });
+      ctx.fill();
+
+      const headX = -18 * s;
+      const headY = (bodyYOffset - 2) * s;
+
+      ctx.fillStyle = '#191822';
+      ctx.beginPath();
+      ctx.ellipse(headX, headY, 8.5 * s, 10.5 * s, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.ellipse(headX + 4 * s, headY - 6 * s, 4 * s, 7 * s, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#c5c2d4';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(headX - 2 * s, headY, 2.5 * s, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+
+      if (sheep.state === 'lying') {
+        if (Math.random() < 0.015 && sheep.zzz.length < 3) {
+          sheep.zzz.push({
+            x: headX - 6 * s,
+            y: headY - 10 * s,
+            alpha: 0.7,
+            scale: Math.random() * 0.4 + 0.8
+          });
+        }
+      }
+
+      ctx.fillStyle = '#8275a3';
+      ctx.font = `${Math.round(11 * s)}px Quicksand, sans-serif`;
+      for (let zIdx = sheep.zzz.length - 1; zIdx >= 0; zIdx--) {
+        const p = sheep.zzz[zIdx];
+        p.y -= 0.3;
+        p.x += Math.sin(p.y * 0.05) * 0.25;
+        p.alpha -= 0.004;
+
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fillText('z', p.x, p.y);
+        ctx.globalAlpha = 1;
+
+        if (p.alpha <= 0) {
+          sheep.zzz.splice(zIdx, 1);
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function updateAndDrawJumpingSheep(time) {
+      jumpCooldown--;
+      if (jumpCooldown <= 0) {
+        triggerSheepJump(false);
+        jumpCooldown = Math.floor(Math.random() * 900 + 1200);
+      }
+
+      if (!jumpingSheep) return;
+
+      jumpingSheep.progress += 0.005;
+      const p = jumpingSheep.progress;
+
+      if (p >= 1) {
+        jumpingSheep = null;
+        sheepCounted++;
+        document.getElementById('sheepCounterBadge').textContent = sheepCounted;
+        return;
+      }
+
+      const currentX = (jumpingSheep.startXRatio + p * (jumpingSheep.endXRatio - jumpingSheep.startXRatio)) * width;
+      let currentY = jumpingSheep.baseYRatio * height;
+
+      const fenceX = jumpingSheep.fenceXRatio * width;
+      const distToFence = currentX - fenceX;
+      const jumpWidth = 90;
+
+      let jumpOffset = 0;
+      if (Math.abs(distToFence) < jumpWidth) {
+        const normalized = 1 - Math.pow(distToFence / jumpWidth, 2);
+        jumpOffset = normalized * 48;
+      }
+
+      ctx.save();
+      ctx.translate(currentX, currentY - jumpOffset);
+
+      const s = jumpingSheep.scale;
+      const runCycle = Math.sin(p * 45);
+
+      ctx.fillStyle = '#121118';
+      if (jumpOffset > 10) {
+        ctx.fillRect(-10 * s, 6 * s, 8 * s, 3 * s);
+        ctx.fillRect(4 * s, 6 * s, 8 * s, 3 * s);
+      } else {
+        ctx.fillRect(-10 * s, 6 * s, 3 * s, 10 * s + runCycle * 2.5);
+        ctx.fillRect(-3 * s, 6 * s, 3 * s, 10 * s - runCycle * 2.5);
+        ctx.fillRect(4 * s, 6 * s, 3 * s, 10 * s + runCycle * 2.5);
+        ctx.fillRect(10 * s, 6 * s, 3 * s, 10 * s - runCycle * 2.5);
+      }
+
+      ctx.fillStyle = '#9490a0';
+      ctx.beginPath();
+      ctx.arc(0, 0, 15 * s, 0, Math.PI * 2);
+      ctx.arc(-8 * s, -4 * s, 12 * s, 0, Math.PI * 2);
+      ctx.arc(8 * s, -3 * s, 13 * s, 0, Math.PI * 2);
+      ctx.fill();
+
+      const headX = 16 * s;
+      const headY = -2 * s;
+      ctx.fillStyle = '#191822';
+      ctx.beginPath();
+      ctx.ellipse(headX, headY, 7.5 * s, 9.5 * s, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = '#c5c2d4';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(headX + 2 * s, headY, 2 * s, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+
+      if (distToFence > -10 && distToFence < 25 && !jumpingSheep.notified) {
+        jumpingSheep.notified = true;
+        showNotification(`✦ Sheep #${sheepCounted + 1} hopped the fence ✦`, "🐑");
+      }
+
+      ctx.restore();
+    }
+
+    function drawFireflies(time) {
+      fireflies.forEach(f => {
+        const fx = f.x * width + Math.sin(time * f.speed + f.phase) * 12;
+        const fy = f.y * height + Math.cos(time * f.speed * 1.3 + f.phase) * 10;
+        const glow = 0.2 + 0.35 * Math.sin(time * 0.0025 + f.phase);
+
+        ctx.fillStyle = `rgba(205, 163, 110, ${Math.max(0.08, glow)})`;
+        ctx.beginPath();
+        ctx.arc(fx, fy, f.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    // --- DRAWING THE 3D BOWLING LANE WITH BUMPERS & BLACKLIGHT DECK ---
+    function drawBowlingLane(time) {
+      const p1 = project3D(-LANE_HALF_WIDTH, 0, 0);
+      const p2 = project3D(LANE_HALF_WIDTH, 0, 0);
+      const p3 = project3D(LANE_HALF_WIDTH, 0, MAX_Z);
+      const p4 = project3D(-LANE_HALF_WIDTH, 0, MAX_Z);
+
+      const gL1 = project3D(-LANE_HALF_WIDTH - 12, 0, 0);
+      const gL2 = project3D(-LANE_HALF_WIDTH - 12, 0, MAX_Z);
+      const gR1 = project3D(LANE_HALF_WIDTH + 12, 0, 0);
+      const gR2 = project3D(LANE_HALF_WIDTH + 12, 0, MAX_Z);
+
+      // Gutters
+      ctx.fillStyle = '#070a12';
+      ctx.beginPath();
+      ctx.moveTo(gL1.x, gL1.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.lineTo(p4.x, p4.y);
+      ctx.lineTo(gL2.x, gL2.y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(p2.x, p2.y);
+      ctx.lineTo(gR1.x, gR1.y);
+      ctx.lineTo(gR2.x, gR2.y);
+      ctx.lineTo(p3.x, p3.y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Lane surface
+      const laneGrad = ctx.createLinearGradient(0, p1.y, 0, p3.y);
+      laneGrad.addColorStop(0, '#191524');
+      laneGrad.addColorStop(0.5, '#14111d');
+      laneGrad.addColorStop(1, '#0e0b14');
+
+      ctx.fillStyle = laneGrad;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.lineTo(p3.x, p3.y);
+      ctx.lineTo(p4.x, p4.y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Grain lines
+      ctx.strokeStyle = 'rgba(130, 117, 163, 0.06)';
+      ctx.lineWidth = 1;
+      for (let i = -3; i <= 3; i++) {
+        const offset = i * (LANE_HALF_WIDTH / 3.8);
+        const start = project3D(offset, 0, 0);
+        const end = project3D(offset, 0, MAX_Z);
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
+
+      // Target Arrows
+      const arrowZ = 280;
+      const arrowPositions = [-26, -13, 0, 13, 26];
+      ctx.fillStyle = 'rgba(205, 163, 110, 0.22)';
+      arrowPositions.forEach(ax => {
+        const tip = project3D(ax, 0, arrowZ + 25);
+        const baseL = project3D(ax - 3, 0, arrowZ);
+        const baseR = project3D(ax + 3, 0, arrowZ);
+        ctx.beginPath();
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(baseR.x, baseR.y);
+        ctx.lineTo(baseL.x, baseL.y);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      // Foul Line
+      ctx.strokeStyle = 'rgba(130, 117, 163, 0.35)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.stroke();
+
+      // --- BLACKLIGHT OVERHEAD FLOODLIGHT & PIN DECK ILLUMINATION ---
+      const deckCenter = project3D(0, 0, PIN_DECK_Z + 40);
+      const uvGlow = ctx.createRadialGradient(deckCenter.x, deckCenter.y, 10, deckCenter.x, deckCenter.y, 85);
+      uvGlow.addColorStop(0, 'rgba(168, 85, 247, 0.38)'); // Rich UV Ultraviolet
+      uvGlow.addColorStop(0.5, 'rgba(126, 34, 206, 0.22)');
+      uvGlow.addColorStop(1, 'rgba(14, 11, 20, 0)');
+      ctx.fillStyle = uvGlow;
+      ctx.beginPath();
+      ctx.arc(deckCenter.x, deckCenter.y, 85, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Overhead Blacklight Fixture Bar
+      const lampP1 = project3D(-LANE_HALF_WIDTH - 8, 48, PIN_DECK_Z + 15);
+      const lampP2 = project3D(LANE_HALF_WIDTH + 8, 48, PIN_DECK_Z + 15);
+      ctx.save();
+      ctx.shadowColor = '#a855f7';
+      ctx.shadowBlur = 15;
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 3.5 * lampP1.scale * 3.6;
+      ctx.beginPath();
+      ctx.moveTo(lampP1.x, lampP1.y);
+      ctx.lineTo(lampP2.x, lampP2.y);
+      ctx.stroke();
+      ctx.restore();
+
+      // --- BOWLING BUMPERS (TUBULAR RAILS ALONG GUTTERS) ---
+      // Left Bumper Rail
+      const bL_start = project3D(-LANE_HALF_WIDTH + 6, 6, 20);
+      const bL_end = project3D(-LANE_HALF_WIDTH + 6, 6, MAX_Z - 20);
+      const bL_width = 8 * bL_start.scale * 3.6;
+
+      ctx.save();
+      // Bumper glow (flashes brighter on bounce)
+      const flashAlphaL = Math.min(1, bumperFlashLeft / 15);
+      ctx.shadowColor = flashAlphaL > 0 ? '#38bdf8' : '#818cf8';
+      ctx.shadowBlur = flashAlphaL > 0 ? 18 : 8;
+
+      const bumperGradL = ctx.createLinearGradient(bL_start.x, bL_start.y, bL_end.x, bL_end.y);
+      bumperGradL.addColorStop(0, flashAlphaL > 0 ? '#7dd3fc' : '#6366f1');
+      bumperGradL.addColorStop(0.5, flashAlphaL > 0 ? '#38bdf8' : '#4f46e5');
+      bumperGradL.addColorStop(1, '#312e81');
+
+      ctx.strokeStyle = bumperGradL;
+      ctx.lineWidth = Math.max(3, bL_width);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(bL_start.x, bL_start.y);
+      ctx.lineTo(bL_end.x, bL_end.y);
+      ctx.stroke();
+
+      // Bumper support posts
+      for (let sZ = 120; sZ < MAX_Z - 40; sZ += 200) {
+        const postTop = project3D(-LANE_HALF_WIDTH + 6, 6, sZ);
+        const postBase = project3D(-LANE_HALF_WIDTH + 6, 0, sZ);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+        ctx.beginPath();
+        ctx.moveTo(postTop.x, postTop.y);
+        ctx.lineTo(postBase.x, postBase.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Right Bumper Rail
+      const bR_start = project3D(LANE_HALF_WIDTH - 6, 6, 20);
+      const bR_end = project3D(LANE_HALF_WIDTH - 6, 6, MAX_Z - 20);
+      const bR_width = 8 * bR_start.scale * 3.6;
+
+      ctx.save();
+      const flashAlphaR = Math.min(1, bumperFlashRight / 15);
+      ctx.shadowColor = flashAlphaR > 0 ? '#38bdf8' : '#818cf8';
+      ctx.shadowBlur = flashAlphaR > 0 ? 18 : 8;
+
+      const bumperGradR = ctx.createLinearGradient(bR_start.x, bR_start.y, bR_end.x, bR_end.y);
+      bumperGradR.addColorStop(0, flashAlphaR > 0 ? '#7dd3fc' : '#6366f1');
+      bumperGradR.addColorStop(0.5, flashAlphaR > 0 ? '#38bdf8' : '#4f46e5');
+      bumperGradR.addColorStop(1, '#312e81');
+
+      ctx.strokeStyle = bumperGradR;
+      ctx.lineWidth = Math.max(3, bR_width);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(bR_start.x, bR_start.y);
+      ctx.lineTo(bR_end.x, bR_end.y);
+      ctx.stroke();
+
+      for (let sZ = 120; sZ < MAX_Z - 40; sZ += 200) {
+        const postTop = project3D(LANE_HALF_WIDTH - 6, 6, sZ);
+        const postBase = project3D(LANE_HALF_WIDTH - 6, 0, sZ);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.4)';
+        ctx.beginPath();
+        ctx.moveTo(postTop.x, postTop.y);
+        ctx.lineTo(postBase.x, postBase.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // FOUL LINE BALL CRADLE
+      if (ball.state === 'ready') {
+        const cradlePos = project3D(ball.x, 0, 0);
+        const pulse = Math.sin(time * 0.003) * 4;
+
+        ctx.save();
+        ctx.strokeStyle = 'rgba(205, 163, 110, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(cradlePos.x, cradlePos.y, 38 + pulse, 14 + pulse * 0.4, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const bedGrad = ctx.createRadialGradient(cradlePos.x, cradlePos.y, 2, cradlePos.x, cradlePos.y, 36);
+        bedGrad.addColorStop(0, 'rgba(205, 163, 110, 0.22)');
+        bedGrad.addColorStop(0.7, 'rgba(130, 117, 163, 0.12)');
+        bedGrad.addColorStop(1, 'rgba(25, 21, 36, 0)');
+        ctx.fillStyle = bedGrad;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // --- DRAWING THE BLACKLIGHTED PINS ---
+    function drawPins() {
+      const sortedPins = [...pins].filter(p => !p.isCleared).sort((a, b) => b.z - a.z);
+
+      sortedPins.forEach(pin => {
+        const pos = project3D(pin.x, pin.y, pin.z);
+        const s = pos.scale * 3.6;
+        const pinH = 34 * s;
+        const pinW = 11 * s;
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+
+        if (pin.isKnocked) {
+          ctx.rotate(pin.tiltAngle * pin.tiltDirX);
+        }
+
+        // 1. Blacklight Floor Reflection Glow
+        const floorGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, pinW * 1.6);
+        floorGrad.addColorStop(0, 'rgba(168, 85, 247, 0.55)'); // Electric UV puddle
+        floorGrad.addColorStop(0.7, 'rgba(99, 102, 241, 0.25)');
+        floorGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = floorGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, pinW * 1.5, pinW * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Blacklight UV Phosphorescent Pin Body
+        // Glowing fluorescent UV white & electric violet halo
+        ctx.shadowColor = '#c084fc';
+        ctx.shadowBlur = 16 * s;
+
+        const pinGrad = ctx.createLinearGradient(-pinW * 0.4, 0, pinW * 0.5, -pinH);
+        pinGrad.addColorStop(0, '#e9d5ff'); // Phosphorescent UV lavender white
+        pinGrad.addColorStop(0.35, '#faf5ff');
+        pinGrad.addColorStop(0.75, '#d8b4fe'); // Radiant violet
+        pinGrad.addColorStop(1, '#a855f7');
+
+        ctx.fillStyle = pinGrad;
+        ctx.beginPath();
+        ctx.moveTo(-pinW * 0.4, 0);
+        ctx.quadraticCurveTo(-pinW * 0.6, -pinH * 0.35, -pinW * 0.25, -pinH * 0.65);
+        ctx.lineTo(-pinW * 0.2, -pinH * 0.85);
+        ctx.arc(0, -pinH * 0.92, pinW * 0.28, Math.PI, 0);
+        ctx.lineTo(pinW * 0.2, -pinH * 0.85);
+        ctx.quadraticCurveTo(pinW * 0.25, -pinH * 0.65, pinW * 0.6, -pinH * 0.35);
+        ctx.lineTo(pinW * 0.4, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // 3. Fluorescent Neon Hot Pink / Magenta Blacklight Neck Stripes
+        ctx.shadowColor = '#f43f5e';
+        ctx.shadowBlur = 12 * s;
+        ctx.fillStyle = '#ff1493'; // Deep fluorescent pink
+        ctx.fillRect(-pinW * 0.22, -pinH * 0.78, pinW * 0.44, 2.8 * s);
+        ctx.fillRect(-pinW * 0.22, -pinH * 0.71, pinW * 0.44, 2.4 * s);
+
+        // 4. Subtle inner fluorescent core line
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.lineWidth = 1 * s;
+        ctx.beginPath();
+        ctx.moveTo(-pinW * 0.1, -pinH * 0.2);
+        ctx.lineTo(-pinW * 0.05, -pinH * 0.6);
+        ctx.stroke();
+
+        ctx.restore();
+      });
+    }
+
+    // DRAWING THE BOWLING BALL
+    function drawBowlingBall(time) {
+      const pos = project3D(ball.x, ball.y, ball.z);
+      const s = pos.scale * 3.6;
+      const r = ball.radius * s;
+
+      ctx.save();
+      ctx.translate(pos.x, pos.y);
+
+      // Ambient Breathing Halo
+      if (ball.state === 'ready') {
+        const breath = Math.sin(time * 0.003) * 5;
+        const auraGrad = ctx.createRadialGradient(0, -r * 0.6, r * 0.8, 0, -r * 0.6, r * 1.5 + breath);
+        auraGrad.addColorStop(0, 'rgba(205, 163, 110, 0.35)');
+        auraGrad.addColorStop(0.5, 'rgba(130, 117, 163, 0.18)');
+        auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = auraGrad;
+        ctx.beginPath();
+        ctx.arc(0, -r * 0.6, r * 1.5 + breath, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Drop Shadow
+      ctx.fillStyle = 'rgba(4, 6, 12, 0.75)';
+      ctx.beginPath();
+      ctx.ellipse(0, r * 0.15, r * 1.15, r * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ball Body
+      const ballGrad = ctx.createRadialGradient(-r * 0.35, -r * 0.95, r * 0.05, 0, -r * 0.6, r);
+      ballGrad.addColorStop(0, '#756598');
+      ballGrad.addColorStop(0.35, '#43375c');
+      ballGrad.addColorStop(0.75, '#221b33');
+      ballGrad.addColorStop(1, '#110c1c');
+
+      ctx.fillStyle = ballGrad;
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.6, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Contour rim
+      ctx.strokeStyle = 'rgba(205, 163, 110, 0.55)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.6, r, -Math.PI * 0.9, -Math.PI * 0.1);
+      ctx.stroke();
+
+      // Celestial Swirling Veins
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.6, r - 1, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.rotate(ball.rotationAngle * 0.5);
+      ctx.strokeStyle = 'rgba(205, 163, 110, 0.28)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.ellipse(0, -r * 0.6, r * 0.8, r * 0.35, 0.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Rotating Finger Holes
+      ctx.save();
+      ctx.translate(0, -r * 0.6);
+      ctx.rotate(ball.rotationAngle);
+      
+      const holeR = r * 0.14;
+      const holePositions = [
+        { x: -r * 0.25, y: -r * 0.2 },
+        { x:  r * 0.25, y: -r * 0.2 },
+        { x:  0,        y:  r * 0.28 }
+      ];
+
+      holePositions.forEach(h => {
+        ctx.fillStyle = '#cda36e';
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, holeR + 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0a0712';
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, holeR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+
+      if (ball.state === 'ready') {
+        ctx.fillStyle = 'rgba(205, 163, 110, 0.75)';
+        ctx.font = `${Math.round(11 * s)}px Quicksand, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('✦ Tap or Swipe ✦', 0, -r * 1.85);
+      }
+
+      ctx.restore();
+    }
+
+    // Trajectory / Aiming Guide Arc
+    function drawAimingGuide() {
+      if (!isAimDragging || ball.state !== 'ready') return;
+
+      const dy = pointerStartY - pointerCurrentY;
+      const dx = pointerCurrentX - pointerStartX;
+      if (dy <= 10) return;
+
+      const aimRatio = (dx / Math.max(dy, 40)) * 25;
+      const startPos = project3D(ball.x, 0, 0);
+
+      ctx.save();
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = 'rgba(205, 163, 110, 0.55)';
+      ctx.lineWidth = 1.8;
+
+      ctx.beginPath();
+      ctx.moveTo(startPos.x, startPos.y);
+
+      const targetPos = project3D(ball.x + aimRatio, 0, PIN_DECK_Z);
+      ctx.lineTo(targetPos.x, targetPos.y);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#cda36e';
+      ctx.beginPath();
+      ctx.arc(targetPos.x, targetPos.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // --- MAIN ANIMATION LOOP ---
+    function gameLoop(time) {
+      ctx.clearRect(0, 0, width, height);
+
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, height * 0.45);
+      skyGrad.addColorStop(0, '#04060c');
+      skyGrad.addColorStop(0.6, '#0b101f');
+      skyGrad.addColorStop(1, '#15192c');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      drawStars(time);
+      drawCrescentMoon(time);
+      drawSwirlyClouds(time);
+      drawHills(time);
+      pastureSheep.forEach(sh => drawSheep(sh, time));
+      updateAndDrawJumpingSheep(time);
+      drawFireflies(time);
+
+      drawBowlingLane(time);
+      updateBowlingPhysics();
+      drawPins();
+      drawBowlingBall(time);
+      drawAimingGuide();
+
+      updateBreathingGuide(time);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function updateBreathingGuide(time) {
+      const breathEl = document.getElementById('breathingText');
+      if (!breathEl) return;
+      const cycle = (time * 0.0003) % 1;
+      if (cycle < 0.35) {
+        breathEl.textContent = 'Breathe in slowly...';
+      } else if (cycle < 0.65) {
+        breathEl.textContent = 'Hold gently...';
+      } else {
+        breathEl.textContent = 'Exhale softly...';
+      }
+    }
+
+    // --- BUTTONS & MODAL WIRED HANDLERS ---
+    document.getElementById('dimmerBtn').addEventListener('click', () => {
+      cycleBrightness();
+    });
+
+    document.getElementById('rollBallBtn').addEventListener('click', () => {
+      launchBowlingBallSlow(0);
+    });
+
+    document.getElementById('countSheepBtn').addEventListener('click', () => {
+      triggerSheepJump(true);
+    });
+
+    document.getElementById('paletteBtn').addEventListener('click', () => {
+      const modal = document.getElementById('paletteModal');
+      modal.classList.remove('opacity-0', 'pointer-events-none');
+    });
+
+    document.getElementById('closePaletteBtn').addEventListener('click', () => {
+      const modal = document.getElementById('paletteModal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    });
+
+    document.getElementById('okPaletteBtn').addEventListener('click', () => {
+      const modal = document.getElementById('paletteModal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    });
+
+    document.getElementById('resetGameBtn').addEventListener('click', () => {
+      startNewGame();
+    });
+
+    document.getElementById('modalPlayAgainBtn').addEventListener('click', () => {
+      startNewGame();
+    });
+
+    document.getElementById('modalWatchMeadowBtn').addEventListener('click', () => {
+      const modal = document.getElementById('gameOverModal');
+      modal.classList.add('opacity-0', 'pointer-events-none');
+    });
+
+    window.onload = () => {
+      resizeCanvas();
+      resetPinRack(false);
+      resetBallToFoulLine();
+      renderScoreboard();
+      updateStatusDisplay();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
