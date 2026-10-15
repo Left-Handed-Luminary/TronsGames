@@ -48,6 +48,7 @@ The repository includes several one-page games and experiments, including:
 | `davidic-lyre.html` | Music-inspired interactive experiment |
 | `defender-clone.html` | Defender-style arcade prototype |
 | `ghostboy.html` | Character-based browser game experiment |
+| `latex-modeler.html` | Interactive 3D studio for shaping and rendering a tactile membrane |
 | `mega-minesweeper.html` | Expanded Minesweeper-style puzzle game |
 | `newtons-cradle.html` | Momentum-transfer timing challenge inspired by the classic desktop toy |
 | `mergation.html` | Merge-style browser game prototype |
