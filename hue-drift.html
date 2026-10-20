@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16121f">
+<title>Hue Drift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300&display=swap" rel="stylesheet">
+<style>
+  /* Tokens. The game is deliberately dim in both themes: it is meant for bedtime. */
+  :root {
+    --bg: #221c2c; --ink: #e4d9e8; --ink-soft: #a497ad; --glass: rgba(255,255,255,.07);
+    --line: rgba(255,255,255,.12); --glow: #e0a27e;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #16121f; --ink: #d9cde0; --ink-soft: #8d809a; --glass: rgba(255,255,255,.05); --line: rgba(255,255,255,.09); }
+  }
+  :root[data-theme="dark"] { --bg: #16121f; --ink: #d9cde0; --ink-soft: #8d809a; --glass: rgba(255,255,255,.05); --line: rgba(255,255,255,.09); }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; height: 100%; overflow: hidden;
+    display: flex; flex-direction: column;
+    background: radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--bg), #3a2f55 35%), var(--bg) 70%) var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', 'Iowan Old Style', Georgia, serif; font-weight: 300;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; padding: 14px 22px 4px; }
+  h1 { margin: 0; font-size: 1.55rem; font-style: italic; font-weight: 300; letter-spacing: .01em; }
+  .stats { color: var(--ink-soft); font-size: .95rem; font-variant-numeric: tabular-nums; }
+  .stats b { color: var(--ink); font-weight: 400; }
+  #hint { margin: 0 22px; min-height: 1.4em; color: var(--ink-soft); font-size: .92rem; font-style: italic; transition: opacity .6s; }
+  #hint.gone { opacity: 0; }
+
+  #wrap { position: relative; flex: 1; min-height: 0; margin: 10px 16px; display: grid; place-items: center; }
+  /* The viewport is the fixed playspace; the board inside it is what zooms. */
+  #viewport {
+    position: relative; overflow: hidden; touch-action: none; /* we own every gesture here */
+    border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,.45), 0 0 0 1px var(--line);
+  }
+  #board { display: grid; transform-origin: 0 0; will-change: transform; }
+  #zoom-reset {
+    position: absolute; top: 8px; right: 8px; z-index: 3; min-height: 36px; padding: 6px 14px; font-size: .9rem;
+    background: rgba(20,14,28,.62); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  }
+  #zoom-reset[hidden] { display: none; }
+  .tile { position: relative; transition: background-color .45s ease, transform .22s ease, border-radius .22s ease; }
+  .tile.anchor::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 5px; height: 5px;
+    margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: rgba(10,6,16,.38);
+  }
+  .tile.selected { transform: scale(.8); border-radius: 12px; z-index: 1; box-shadow: 0 0 0 2px rgba(255,240,225,.45), 0 8px 18px rgba(0,0,0,.35); }
+  .tile.nudge { animation: nudge .32s ease; }
+  @keyframes nudge { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  #viewport.solved { animation: breathe 5s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.018); filter: brightness(1.07); } }
+
+  footer { display: flex; gap: 10px; justify-content: center; padding: 6px 16px 18px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 1rem; color: var(--ink); background: var(--glass);
+    border: 1px solid var(--line); border-radius: 999px; padding: 11px 18px; min-height: 46px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:focus-visible { outline: 2px solid var(--glow); outline-offset: 3px; }
+  button[aria-pressed="true"] { background: rgba(255,255,255,.14); }
+  #palette-name { font-style: italic; }
+
+  #overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10,7,16,.5); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 5; }
+  #overlay[hidden] { display: none; }
+  .card { text-align: center; padding: 28px 30px; }
+  .card p { margin: 0 0 6px; font-size: 1.5rem; font-style: italic; }
+  .card small { display: block; color: var(--ink-soft); font-size: 1rem; margin-bottom: 22px; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Hue Drift</h1>
+    <div class="stats" aria-live="polite">Level <b id="level">1</b>&ensp;<b id="moves">0</b> moves</div>
+  </header>
+  <p id="hint">Tap two tiles to swap, or drag one onto another. Pinch to zoom. Dotted tiles stay put.</p>
+  <main id="wrap">
+    <div id="viewport">
+      <div id="board" role="grid" aria-label="Color puzzle"></div>
+      <button id="zoom-reset" hidden>Fit</button>
+    </div>
+  </main>
+  <footer>
+    <button id="peek" aria-pressed="false">Hold to peek</button>
+    <button id="palette"><span id="palette-name">Candle dusk</span></button>
+    <button id="restart">Reshuffle</button>
+  </footer>
+  <div id="overlay" hidden>
+    <div class="card">
+      <p>Settled.</p>
+      <small id="overlay-text"></small>
+      <button id="next">Next level</button>
+    </div>
+  </div>
+
+<script>
+/**
+ * Hue Drift — pure game logic (no DOM access).
+ *
+ * The board is an array where board[position] = tileId, and a tile's id is
+ * its home position. The puzzle is solved when board[i] === i for every i.
+ *
+ * Works in the browser (window.HueLogic) and in Node (module.exports) so the
+ * same code that ships is the code that is tested.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.HueLogic = api;
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Color: sRGB <-> OKLab (Björn Ottosson). Interpolating in OKLab gives
+  // perceptually even steps, so neighbouring tiles differ by a similar amount
+  // across the whole board instead of bunching up in the mid-tones.
+  // ---------------------------------------------------------------------------
+  const clamp01 = (x) => Math.min(1, Math.max(0, x));
+  const toLinear = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const toGamma = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+
+  /** '#rrggbb' -> [r, g, b] in 0..255. Throws on malformed input. */
+  function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex));
+    if (!m) throw new Error(`Invalid hex color: ${hex}`);
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  /** [r, g, b] (0..255, may be fractional or out of range) -> '#rrggbb'. */
+  function rgbToHex(rgb) {
+    return '#' + rgb
+      .map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function rgbToOklab([r, g, b]) {
+    const lr = toLinear(r / 255), lg = toLinear(g / 255), lb = toLinear(b / 255);
+    const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
+    const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
+    const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ];
+  }
+
+  function oklabToRgb([L, a, b]) {
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+    return [
+      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+    ].map((c) => toGamma(clamp01(c)) * 255); // clamp out-of-gamut before gamma
+  }
+
+  /** Euclidean distance in OKLab (~0.02 is roughly a just-noticeable difference). */
+  function colorDistance(hexA, hexB) {
+    const A = rgbToOklab(hexToRgb(hexA));
+    const B = rgbToOklab(hexToRgb(hexB));
+    return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);
+  }
+
+  function assertDims(cols, rows) {
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 2 || rows < 2) {
+      throw new Error(`Board must be at least 2x2 integers, got ${cols}x${rows}`);
+    }
+  }
+
+  /**
+   * Bilinear gradient between four corner colors, blended in OKLab.
+   * @param {number} cols
+   * @param {number} rows
+   * @param {[string,string,string,string]} corners  [topLeft, topRight, bottomLeft, bottomRight]
+   * @returns {string[]} row-major hex colors, length cols*rows
+   */
+  function buildGradient(cols, rows, corners) {
+    assertDims(cols, rows);
+    if (!Array.isArray(corners) || corners.length !== 4) throw new Error('Need exactly 4 corner colors');
+    const [A, B, C, D] = corners.map((h) => rgbToOklab(hexToRgb(h)));
+    const out = new Array(cols * rows);
+    for (let y = 0; y < rows; y++) {
+      const v = y / (rows - 1);
+      for (let x = 0; x < cols; x++) {
+        const u = x / (cols - 1);
+        const lab = [0, 1, 2].map((k) =>
+          (1 - u) * (1 - v) * A[k] + u * (1 - v) * B[k] + (1 - u) * v * C[k] + u * v * D[k]);
+        out[y * cols + x] = rgbToHex(oklabToRgb(lab));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Positions that are locked in place (shown with a dot).
+   * 'frame'   = whole border (easiest), 'sides' = left & right columns,
+   * 'corners' = four corners only (hardest).
+   */
+  function anchorIndices(cols, rows, mode = 'corners') {
+    assertDims(cols, rows);
+    const set = new Set();
+    const idx = (x, y) => y * cols + x;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const isCorner = (x === 0 || x === cols - 1) && (y === 0 || y === rows - 1);
+        const isSide = x === 0 || x === cols - 1;
+        const isBorder = isSide || y === 0 || y === rows - 1;
+        if ((mode === 'frame' && isBorder) || (mode === 'sides' && isSide) || (mode === 'corners' && isCorner)) {
+          set.add(idx(x, y));
+        }
+      }
+    }
+    if (!['frame', 'sides', 'corners'].includes(mode)) throw new Error(`Unknown anchor mode: ${mode}`);
+    return set;
+  }
+
+  /** Small seedable PRNG (mulberry32) so shuffles are reproducible in tests. */
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * Scramble every non-anchored tile using Sattolo's algorithm, which yields a
+   * uniformly random single cycle. That guarantees NO movable tile starts in
+   * its home spot (a derangement), so a fresh board is never partly pre-solved.
+   */
+  function scramble(size, anchors, rng = Math.random) {
+    const board = Array.from({ length: size }, (_, i) => i);
+    const movable = board.filter((i) => !anchors.has(i));
+    for (let i = movable.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * i); // j < i (never j === i) is what makes it Sattolo
+      [board[movable[i]], board[movable[j]]] = [board[movable[j]], board[movable[i]]];
+    }
+    return board;
+  }
+
+  /** Immutable swap. Returns the SAME array reference when the move is illegal. */
+  function swapTiles(board, a, b, anchors) {
+    const inRange = (p) => Number.isInteger(p) && p >= 0 && p < board.length;
+    if (a === b || !inRange(a) || !inRange(b) || anchors.has(a) || anchors.has(b)) return board;
+    const next = board.slice();
+    [next[a], next[b]] = [next[b], next[a]];
+    return next;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tile styles. Color palettes give each tile a flat color. Line palettes add a
+  // hatch whose angle is ALSO blended bilinearly across the board, so a grayscale
+  // board (where many tiles could share a gray) stays solvable: every tile has a
+  // unique (gray, angle) pair.
+  // ---------------------------------------------------------------------------
+  function buildTileStyles(cols, rows, palette) {
+    const colors = buildGradient(cols, rows, palette.corners);
+    if (!palette.lines) return colors.map((color) => ({ color, angle: null, ink: null }));
+    const [a, b, c, d] = palette.lines.angles;
+    return colors.map((color, i) => {
+      const u = (i % cols) / (cols - 1);
+      const v = Math.floor(i / cols) / (rows - 1);
+      const angle = Math.round(((1 - u) * (1 - v) * a + u * (1 - v) * b + (1 - u) * v * c + u * v * d) * 10) / 10;
+      // Light ink on dark tiles, dark ink on light tiles, so lines stay visible but soft.
+      const ink = rgbToOklab(hexToRgb(color))[0] < 0.6 ? palette.lines.light : palette.lines.dark;
+      return { color, angle, ink };
+    });
+  }
+
+  /** Smallest difference between two line angles; lines repeat every 180 degrees. */
+  function angleGap(a, b) {
+    const d = Math.abs(a - b) % 180;
+    return Math.min(d, 180 - d);
+  }
+
+  /** Two tiles can be told apart by color OR (for line palettes) by line angle. */
+  function tilesDistinct(t1, t2, minColor = 0.01, minAngle = 8) {
+    if (colorDistance(t1.color, t2.color) >= minColor) return true;
+    return t1.angle !== null && t2.angle !== null && angleGap(t1.angle, t2.angle) >= minAngle;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pinch-zoom math. The board is drawn at translate(tx,ty) scale(s) with
+  // transform-origin 0 0, inside a viewport of size w x h that clips it.
+  // ---------------------------------------------------------------------------
+
+  /** Keep scale in [minS, maxS] and never let the board pull away from an edge. */
+  function clampView({ s, tx, ty }, w, h, minS = 1, maxS = 4) {
+    const sc = Math.min(maxS, Math.max(minS, s));
+    return {
+      s: sc,
+      tx: Math.min(0, Math.max(w - w * sc, tx)),
+      ty: Math.min(0, Math.max(h - h * sc, ty)),
+    };
+  }
+
+  /**
+   * New view for a two-finger gesture. The board point that was under the
+   * fingers' midpoint when the pinch began stays under the current midpoint,
+   * which gives zoom and two-finger pan in one formula.
+   */
+  function pinchView(start, startMid, startDist, mid, dist, w, h, maxS = 4) {
+    const s = Math.min(maxS, Math.max(1, start.s * (dist / (startDist || 1))));
+    const qx = (startMid.x - start.tx) / start.s;
+    const qy = (startMid.y - start.ty) / start.s;
+    return clampView({ s, tx: mid.x - qx * s, ty: mid.y - qy * s }, w, h, 1, maxS);
+  }
+
+  const isSolved = (board) => board.every((tile, pos) => tile === pos);
+  const correctCount = (board) => board.reduce((n, tile, pos) => n + (tile === pos ? 1 : 0), 0);
+
+  // ---------------------------------------------------------------------------
+  // Content: warm, dim, low-chroma palettes chosen to be easy on eyes at night.
+  // Tuned so every tile on every level stays >= 0.0145 OKLab apart (see tests).
+  // ---------------------------------------------------------------------------
+  const PALETTES = [
+    { name: 'Candle dusk',  corners: ['#4f2033', '#e0a27e', '#022646', '#848e8f'] },
+    { name: 'Lavender fog', corners: ['#3a2f6f', '#b993e0', '#0d3422', '#c9c09c'] },
+    { name: 'Moon tide',    corners: ['#002a55', '#69878b', '#3d0918', '#beb390'] },
+    { name: 'Ember hush',   corners: ['#561a14', '#daab64', '#2d143f', '#8c567c'] },
+    {
+      // Black & white: gray darkens toward the top, hatch angle sweeps left to right.
+      name: 'Graphite lines',
+      corners: ['#161616', '#2c2c2c', '#b0b0b0', '#cbcbcb'],
+      lines: { angles: [25, 155, 35, 145], light: 'rgba(255,255,255,.26)', dark: 'rgba(0,0,0,.30)' },
+    },
+  ];
+
+  const LEVELS = [
+    { cols: 4, rows: 5, anchors: 'frame' },
+    { cols: 4, rows: 6, anchors: 'frame' },
+    { cols: 5, rows: 7, anchors: 'frame' },
+    { cols: 5, rows: 7, anchors: 'sides' },
+    { cols: 6, rows: 8, anchors: 'sides' },
+    { cols: 6, rows: 8, anchors: 'corners' },
+    { cols: 7, rows: 9, anchors: 'corners' },
+  ];
+
+  /** Levels past the end repeat the hardest layout forever. */
+  function levelConfig(level) {
+    const n = Math.max(0, Math.floor(Number(level) || 0));
+    return LEVELS[Math.min(n, LEVELS.length - 1)];
+  }
+
+  return {
+    hexToRgb, rgbToHex, rgbToOklab, oklabToRgb, colorDistance,
+    buildGradient, anchorIndices, mulberry32, scramble, swapTiles,
+    isSolved, correctCount, levelConfig, PALETTES, LEVELS,
+    buildTileStyles, angleGap, tilesDistinct, clampView, pinchView,
+  };
+});
+
+</script>
+<script>
+(() => {
+  'use strict';
+  const L = window.HueLogic;
+  const STORE_KEY = 'hue-drift:v1';
+  const $ = (s) => document.querySelector(s);
+  const els = {
+    wrap: $('#wrap'), viewport: $('#viewport'), board: $('#board'), zoomReset: $('#zoom-reset'),
+    level: $('#level'), moves: $('#moves'),
+    hint: $('#hint'), peek: $('#peek'), palette: $('#palette'), paletteName: $('#palette-name'),
+    restart: $('#restart'), overlay: $('#overlay'), overlayText: $('#overlay-text'), next: $('#next'),
+  };
+  const state = { level: 0, paletteIdx: 0, cfg: null, tiles: [], anchors: new Set(), board: [],
+                  selected: null, moves: 0, solved: false, peeking: false, winTimer: 0,
+                  view: { s: 1, tx: 0, ty: 0 }, size: { w: 0, h: 0 } };
+
+  // ---- persistence (storage can be unavailable/blocked: always optional) ----
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      const n = L.PALETTES.length;
+      if (Number.isInteger(d.level) && d.level >= 0) state.level = d.level;
+      if (Number.isInteger(d.paletteIdx)) state.paletteIdx = ((d.paletteIdx % n) + n) % n;
+    } catch { /* first run or storage blocked */ }
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ level: state.level, paletteIdx: state.paletteIdx })); } catch {}
+  }
+
+  // ---- level lifecycle ----
+  function startLevel() {
+    clearTimeout(state.winTimer);
+    const cfg = state.cfg = L.levelConfig(state.level);
+    state.anchors = L.anchorIndices(cfg.cols, cfg.rows, cfg.anchors);
+    state.board = L.scramble(cfg.cols * cfg.rows, state.anchors);
+    Object.assign(state, { selected: null, moves: 0, solved: false, peeking: false });
+    els.viewport.classList.remove('solved');
+    els.overlay.hidden = true;
+    state.view = { s: 1, tx: 0, ty: 0 };
+    recolor(); buildTiles(); layout(); updateHud(); save();
+    els.hint.classList.toggle('gone', state.level > 0);
+  }
+  function recolor() {
+    const p = L.PALETTES[state.paletteIdx];
+    state.tiles = L.buildTileStyles(state.cfg.cols, state.cfg.rows, p);
+    els.paletteName.textContent = p.name;
+    document.querySelector('meta[name="theme-color"]').content = p.corners[2];
+  }
+  function buildTiles() {
+    const { cols, rows } = state.cfg;
+    els.board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    els.board.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < cols * rows; i++) {
+      const t = document.createElement('div');
+      t.className = 'tile' + (state.anchors.has(i) ? ' anchor' : '');
+      t.dataset.pos = i;
+      frag.appendChild(t);
+    }
+    els.board.replaceChildren(frag);
+    paintAll();
+  }
+  /** Largest whole-pixel tile that fits the free space, so the board never scrolls. */
+  function layout() {
+    if (!state.cfg) return;
+    const { cols, rows } = state.cfg;
+    const tile = Math.max(8, Math.floor(Math.min(els.wrap.clientWidth / cols, els.wrap.clientHeight / rows)));
+    const w = tile * cols, h = tile * rows;
+    for (const el of [els.viewport, els.board]) { el.style.width = w + 'px'; el.style.height = h + 'px'; }
+    // Keep the same relative zoom/pan when the screen rotates or resizes.
+    const k = state.size.w ? w / state.size.w : 1;
+    state.size = { w, h };
+    setView({ s: state.view.s, tx: state.view.tx * k, ty: state.view.ty * k });
+  }
+  function setView(v) {
+    state.view = L.clampView(v, state.size.w, state.size.h);
+    const { s, tx, ty } = state.view;
+    els.board.style.transform = `translate(${tx}px, ${ty}px) scale(${s})`;
+    els.zoomReset.hidden = s <= 1.01;
+  }
+  function updateHud() {
+    els.level.textContent = state.level + 1;
+    els.moves.textContent = state.moves;
+  }
+
+  // ---- rendering ----
+  function paintTile(pos) {
+    const t = els.board.children[pos];
+    const tile = state.tiles[state.peeking ? pos : state.board[pos]];
+    t.style.backgroundColor = tile.color;
+    t.style.backgroundImage = tile.angle === null ? 'none'
+      : `repeating-linear-gradient(${tile.angle}deg, ${tile.ink} 0 1.5px, transparent 1.5px 8px)`;
+    t.classList.toggle('selected', pos === state.selected && !state.peeking);
+  }
+  function paintAll() { for (let i = 0; i < state.board.length; i++) paintTile(i); }
+  function nudge(pos) {
+    const t = els.board.children[pos];
+    t.classList.remove('nudge'); void t.offsetWidth; t.classList.add('nudge');
+  }
+
+  // ---- moves ----
+  function select(pos) {
+    const prev = state.selected;
+    state.selected = pos;
+    if (prev !== null) paintTile(prev);
+    if (pos !== null) paintTile(pos);
+  }
+  function trySwap(a, b) {
+    const next = L.swapTiles(state.board, a, b, state.anchors);
+    if (next === state.board) { [a, b].forEach((p) => state.anchors.has(p) && nudge(p)); return; }
+    const prevSel = state.selected;
+    state.board = next; state.selected = null;
+    [a, b, prevSel].forEach((p) => p !== null && paintTile(p));
+    state.moves++; updateHud();
+    els.hint.classList.add('gone');
+    if (L.isSolved(state.board)) win();
+  }
+  function onTap(pos) {
+    if (state.anchors.has(pos)) return nudge(pos);
+    if (state.selected === null) select(pos);
+    else if (state.selected === pos) select(null);
+    else trySwap(state.selected, pos);
+  }
+  function win() {
+    state.solved = true;
+    els.viewport.classList.add('solved');
+    state.winTimer = setTimeout(() => {
+      els.overlayText.textContent = `${state.moves} moves on level ${state.level + 1}`;
+      els.overlay.hidden = false;
+      els.next.focus({ preventScroll: true });
+    }, 1400); // let the finished gradient breathe before covering it
+  }
+
+  // ---- touch: one finger taps/drags tiles, two fingers pinch-zoom and pan ----
+  const pointers = new Map();      // pointerId -> {x, y} in viewport coordinates
+  let downPos = null;              // tile under the first finger, for tap / drag-swap
+  let pinch = null;                // snapshot taken when the second finger lands
+  let gesture = false;             // true from 2nd finger down until ALL fingers lift
+  const local = (e) => {
+    const r = els.viewport.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const tileAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    return el && el.closest ? el.closest('#board .tile') : null;
+  };
+  const midAndDist = () => {
+    const [a, b] = [...pointers.values()];
+    return { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+  };
+
+  els.viewport.addEventListener('pointerdown', (e) => {
+    if (e.target === els.zoomReset || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    pointers.set(e.pointerId, local(e));
+    if (pointers.size === 1) {
+      const t = e.target.closest('.tile');
+      downPos = !state.solved && !state.peeking && t ? +t.dataset.pos : null;
+    } else if (pointers.size === 2) {
+      downPos = null; gesture = true;      // a pinch is never also a tap
+      const { mid, dist } = midAndDist();
+      pinch = { view: { ...state.view }, mid, dist };
+    }
+  });
+  els.viewport.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, local(e));
+    if (pinch && pointers.size >= 2) {
+      const { mid, dist } = midAndDist();
+      setView(L.pinchView(pinch.view, pinch.mid, pinch.dist, mid, dist, state.size.w, state.size.h));
+    }
+  });
+  const lift = (e, cancelled) => {
+    if (!pointers.delete(e.pointerId)) return;
+    if (pointers.size < 2) pinch = null;
+    if (gesture) { if (pointers.size === 0) gesture = false; return; }
+    if (cancelled || downPos === null) { downPos = null; return; }
+    const start = downPos; downPos = null;
+    const t = tileAt(e.clientX, e.clientY);
+    if (!t) return;
+    const end = +t.dataset.pos;
+    if (end !== start) trySwap(start, end); else onTap(end);
+  };
+  els.viewport.addEventListener('pointerup', (e) => lift(e, false));
+  els.viewport.addEventListener('pointercancel', (e) => lift(e, true));
+
+  // Trackpad pinch / ctrl+scroll on desktop zooms around the cursor.
+  els.viewport.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const p = local(e);
+    setView(L.pinchView(state.view, p, 100, p, 100 * Math.exp(-e.deltaY * 0.01), state.size.w, state.size.h));
+  }, { passive: false });
+  // iOS Safari fires its own page-zoom gesture events; keep them out of the playspace.
+  ['gesturestart', 'gesturechange'].forEach((ev) =>
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+  els.zoomReset.addEventListener('click', () => setView({ s: 1, tx: 0, ty: 0 }));
+
+  // ---- controls ----
+  const setPeek = (on) => {
+    if (state.solved || state.peeking === on) return;
+    state.peeking = on; els.peek.setAttribute('aria-pressed', String(on)); paintAll();
+  };
+  els.peek.addEventListener('pointerdown', (e) => { e.preventDefault(); setPeek(true); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => els.peek.addEventListener(ev, () => setPeek(false)));
+  els.peek.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setPeek(true); } });
+  els.peek.addEventListener('keyup', () => setPeek(false));
+  els.peek.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  els.palette.addEventListener('click', () => {
+    state.paletteIdx = (state.paletteIdx + 1) % L.PALETTES.length;
+    recolor(); paintAll(); save(); // recolor only; your arrangement is kept
+  });
+  els.restart.addEventListener('click', startLevel);
+  els.next.addEventListener('click', () => {
+    state.level++;
+    state.paletteIdx = (state.paletteIdx + 1) % L.PALETTES.length;
+    startLevel();
+  });
+
+  new ResizeObserver(layout).observe(els.wrap);
+  load();
+  startLevel();
+})();
+</script>
+</body>
+</html>
