@@ -45,6 +45,7 @@ The repository includes several one-page games and experiments, including:
 | `chromatic-drift.html` | Color and movement based arcade experiment |
 | `crystal-madness.html` | Isometric crystal-collecting marble adventure with three courses and touchscreen controls |
 | `cootie-catcher.html` | Interactive fortune-teller style game |
+| `cup_n_caps.html` | Color-sorting puzzle where players fill each cup with matching colors |
 | `davidic-lyre.html` | Music-inspired interactive experiment |
 | `defender-clone.html` | Defender-style arcade prototype |
 | `ghostboy.html` | Character-based browser game experiment |
