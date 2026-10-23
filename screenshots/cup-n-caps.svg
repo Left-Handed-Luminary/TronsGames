@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#ffffff" stop-opacity=".12"/>
+      <stop offset=".5" stop-color="#ffffff" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".18"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" rx="22" fill="url(#bg)"/>
+  <circle cx="200" cy="145" r="120" fill="#00f0ff" opacity=".06"/>
+  <text x="200" y="48" fill="#f8fafc" font-family="Arial,sans-serif" font-size="25" font-weight="700" text-anchor="middle">CUP'N CAPS</text>
+  <g stroke="#b7f5ff" stroke-opacity=".7" stroke-width="4">
+    <path d="M76 82h68l-8 154q-26 18-52 0z" fill="url(#glass)"/>
+    <path d="M166 82h68l-8 154q-26 18-52 0z" fill="url(#glass)"/>
+    <path d="M256 82h68l-8 154q-26 18-52 0z" fill="url(#glass)"/>
+  </g>
+  <g>
+    <path d="M84 190h52l-2 37q-24 15-48 0z" fill="#ff2a6d"/>
+    <path d="M82 151h56l-2 39H84z" fill="#00f0ff"/>
+    <path d="M80 112h60l-2 39H82z" fill="#ffcc00"/>
+    <path d="M174 190h52l-2 37q-24 15-48 0z" fill="#ff2a6d"/>
+    <path d="M172 151h56l-2 39h-52z" fill="#00f0ff"/>
+    <path d="M170 112h60l-2 39h-56z" fill="#00f0ff"/>
+    <path d="M264 190h52l-2 37q-24 15-48 0z" fill="#9d4edd"/>
+    <path d="M262 151h56l-2 39h-52z" fill="#9d4edd"/>
+    <path d="M260 112h60l-2 39h-56z" fill="#ffcc00"/>
+  </g>
+  <path d="M48 260h304" stroke="#00f0ff" stroke-opacity=".5" stroke-width="3" stroke-linecap="round"/>
+</svg>
