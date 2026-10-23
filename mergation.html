@@ -377,6 +377,18 @@
         }
     }
 
+    function hasBackingBlock(cube, direction, ignoreA, ignoreB) {
+        const target = cube.position.clone().add(direction.clone().multiplyScalar(cubeSize));
+        for (let other of cubes) {
+            if (!other.parent || other === cube || other === ignoreA || other === ignoreB) continue;
+            if (Math.abs(other.position.y - cube.position.y) > cubeSize * 0.6) continue;
+            const dx = Math.abs(other.position.x - target.x);
+            const dz = Math.abs(other.position.z - target.z);
+            if (dx < cubeSize * 0.75 && dz < cubeSize * 0.75) return true;
+        }
+        return false;
+    }
+
     function handleCollision(moving, other) {
         if (moving.userData.value === other.userData.value) performMerge(moving, other);
         else {
@@ -399,6 +411,11 @@
                 const sep = normal.clone().multiplyScalar(overlap / 2 + overlapEpsilon);
                 moving.position.sub(sep);
                 other.position.add(sep);
+            }
+            if (!hasBackingBlock(other, normal, moving, other)) {
+                const recoil = normal.clone().multiplyScalar(0.08);
+                moving.userData.velocity.sub(recoil);
+                moving.position.sub(recoil.clone().multiplyScalar(0.6));
             }
             popCube(moving); popCube(other);
             // Add spin on impact for visual pop
