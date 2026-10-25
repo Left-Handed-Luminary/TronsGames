@@ -1,0 +1,1428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+</style>
+<title>Simon Writes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#ECEFF4" id="themeColor">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@800;900&display=swap">
+<style>
+/* Layout: one screen, like a music stand. HUD strip, then the written script (a ruled cue sheet with a lit reading line), then four labelled pads. Wide screens put the sheet left and the pads right. */
+:root {
+  --paper: #ECEFF4;
+  --sheet: #FFFFFF;
+  --ink: #131925;
+  --ink-soft: #5B6475;
+  --rule: #DFE4EC;
+  --margin: #E9A19B;
+  --band: rgba(19, 25, 37, 0.06);
+  --band-edge: #131925;
+  --glow: rgba(255, 160, 56, 1);
+  --glow-soft: rgba(255, 166, 66, 0.5);
+  --hit: #1B8749;
+  --miss: #C9332F;
+  --veil: rgba(236, 239, 244, 0.84);
+  --card: #FFFFFF;
+  --card-edge: #D3D9E3;
+  --pad-red: #E1403C;
+  --pad-blue: #2C6BEA;
+  --pad-yellow: #F1BA27;
+  --pad-green: #1F9E58;
+  --pad-label: #FFFFFF;
+  --pad-label-dark: #201B0B;
+  --pad-shade: rgba(0, 0, 0, 0.2);
+  --pulse-band: 0.55;
+  --pulse-ambient: 0.22;
+  --lamp-floor: 0.25;
+
+  --font-display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --font-text: "Atkinson Hyperlegible", Verdana, "Segoe UI", system-ui, sans-serif;
+
+  --line-h: 50px;
+  --num-col: 2.6rem;
+  --caller-size: 16.5px;
+  --move-size: 20px;
+  --radius: 18px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1117; --sheet: #161A22; --ink: #E8ECF3; --ink-soft: #98A1B1; --rule: #252B36; --margin: #6E3A37;
+    --band: rgba(232, 236, 243, 0.07); --band-edge: #E8ECF3; --glow: rgba(255, 172, 72, 1); --glow-soft: rgba(255, 166, 66, 0.36);
+    --hit: #4CC27F; --miss: #FF6B63; --veil: rgba(14, 17, 23, 0.84); --card: #161A22; --card-edge: #2B3241;
+    --pad-red: #CF3633; --pad-blue: #2A60D6; --pad-yellow: #DDA820; --pad-green: #1B8E50; --pad-shade: rgba(0, 0, 0, 0.32);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1117; --sheet: #161A22; --ink: #E8ECF3; --ink-soft: #98A1B1; --rule: #252B36; --margin: #6E3A37;
+  --band: rgba(232, 236, 243, 0.07); --band-edge: #E8ECF3; --glow: rgba(255, 172, 72, 1); --glow-soft: rgba(255, 166, 66, 0.36);
+  --hit: #4CC27F; --miss: #FF6B63; --veil: rgba(14, 17, 23, 0.84); --card: #161A22; --card-edge: #2B3241;
+  --pad-red: #CF3633; --pad-blue: #2A60D6; --pad-yellow: #DDA820; --pad-green: #1B8E50; --pad-shade: rgba(0, 0, 0, 0.32);
+  color-scheme: dark;
+}
+/* Night mode: a game mode, not a theme. Dim red-shifted ink, dark pads, and the beat lamp does all the timekeeping. */
+body.night {
+  --paper: #080404; --sheet: #0E0807; --ink: #C78A72; --ink-soft: #6C4638; --rule: #1E120F; --margin: #33160F;
+  --band: rgba(199, 138, 114, 0.05); --band-edge: #4A2A20; --glow: rgba(255, 104, 56, 1); --glow-soft: rgba(255, 92, 44, 0.34);
+  --hit: #8E9B5C; --miss: #B9483A; --veil: rgba(8, 4, 4, 0.88); --card: #110908; --card-edge: #2B1813;
+  --pad-red: #4F1715; --pad-blue: #17284D; --pad-yellow: #4B3910; --pad-green: #15361F;
+  --pad-label: #D6B4A1; --pad-label-dark: #D6B4A1; --pad-shade: rgba(0, 0, 0, 0.45);
+  --pulse-band: 1; --pulse-ambient: 0.8; --lamp-floor: 0.08;
+  color-scheme: dark;
+}
+
+html { height: 100%; box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 16px;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.4s, color 0.4s;
+}
+button { font: inherit; color: inherit; }
+button:focus-visible, .seg input:focus-visible + label, .switch input:focus-visible + .track { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+.app {
+  height: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  padding-block: 10px 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  overflow: hidden; /* keeps the beat glow from widening the page on phones */
+}
+
+/* ---------- HUD */
+.hud { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 44px; }
+.stat { display: grid; line-height: 1; }
+.k { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.v { font-family: var(--font-display); font-weight: 800; font-size: 26px; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px; }
+.mult { font-family: var(--font-text); font-size: 13px; font-weight: 700; padding: 2px 6px; border-radius: 6px; background: var(--ink); color: var(--sheet); }
+.hearts { display: flex; gap: 3px; }
+.heart { width: 15px; height: 15px; fill: var(--pad-red); transition: opacity 0.25s, transform 0.25s; }
+.heart.lost { fill: var(--rule); transform: scale(0.82); }
+.spacer { flex: 1; }
+.icon-btn {
+  width: 42px; height: 42px; border-radius: 12px;
+  display: grid; place-items: center;
+  border: 1px solid var(--card-edge); background: var(--sheet); cursor: pointer;
+}
+.icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+.icon-btn[aria-pressed="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+
+/* ---------- the written script */
+.sheet {
+  position: relative;
+  min-height: calc(var(--line-h) * 3 + 10px);
+  background: var(--sheet);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.2s, background-color 0.4s;
+}
+.sheet::before { /* the notepad's margin rule */
+  content: ""; position: absolute; top: 0; bottom: 0; left: var(--num-col); width: 2px;
+  background: var(--margin); z-index: 2; pointer-events: none;
+}
+.sheet.ouch { border-color: var(--miss); }
+.playline {
+  position: absolute; left: 0; right: 0; top: calc(var(--line-h) + 8px); height: var(--line-h);
+  background: var(--band);
+  border-block: 2px solid var(--band-edge);
+  pointer-events: none; z-index: 0;
+}
+.playline::after { /* beat glow across the reading line */
+  content: ""; position: absolute; inset: -2px 0;
+  background: linear-gradient(90deg, var(--glow-soft), var(--glow-soft) 55%, transparent);
+  opacity: calc(var(--pulse, 0) * var(--pulse-band));
+}
+.lamp { /* the light that keeps time */
+  position: absolute; z-index: 3; top: 50%; left: var(--num-col);
+  width: 14px; height: 14px; margin: -7px 0 0 -6px; border-radius: 50%;
+  background: var(--glow);
+  opacity: calc(var(--lamp-floor) + var(--pulse, 0) * (1 - var(--lamp-floor)));
+  box-shadow: 0 0 calc(4px + var(--pulse, 0) * 22px) calc(var(--pulse, 0) * 6px) var(--glow-soft);
+}
+.count {
+  position: absolute; top: 0; bottom: 0; left: calc(var(--num-col) + 16px);
+  display: flex; align-items: center;
+  font-family: var(--font-display); font-weight: 900; font-size: calc(var(--line-h) * 0.72);
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.script {
+  list-style: none; margin: 0; padding: 0;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 1;
+  will-change: transform;
+}
+.script.stepped { transition: transform 110ms ease-out; }
+.line {
+  height: var(--line-h);
+  display: grid;
+  grid-template-columns: var(--num-col) minmax(0, 7.6em) minmax(0, 1fr) 1.5em;
+  column-gap: 12px; align-items: center;
+  padding-right: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+.num {
+  padding-right: 9px; text-align: right;
+  font-family: var(--font-display); font-weight: 800; font-size: 17px;
+  font-variant-numeric: tabular-nums; color: var(--ink-soft);
+}
+.caller { font-size: var(--caller-size); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.move {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  font-weight: 700; font-size: var(--move-size); letter-spacing: 0.05em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip { flex: none; width: 0.7em; height: 0.7em; border-radius: 0.18em; background: var(--chip); }
+.txt { opacity: var(--ink-a, 1); transition: opacity 0.3s; }
+.line[data-state] .txt { opacity: 1; }
+.mark { text-align: center; font-weight: 700; font-size: 18px; }
+.line[data-state="perfect"] .mark, .line[data-state="good"] .mark, .line[data-state="held"] .mark { color: var(--hit); }
+.line[data-state="miss"] .mark { color: var(--miss); }
+.line[data-state="miss"] .move { text-decoration: line-through 2px var(--miss); }
+.line[data-state="perfect"], .line[data-state="good"], .line[data-state="held"], .line[data-state="miss"] { opacity: 0.72; }
+.line.current { opacity: 1; }
+.callout {
+  position: absolute; right: 12px; bottom: 10px; z-index: 3; margin: 0;
+  padding: 6px 10px; border-radius: 10px;
+  background: var(--ink); color: var(--sheet);
+  font-weight: 700; font-size: 14px;
+  opacity: 0; pointer-events: none;
+}
+.callout.show { animation: callout 1100ms ease-out forwards; }
+.callout.bad { background: var(--miss); color: #FFFFFF; }
+@keyframes callout {
+  0% { opacity: 0; transform: translateY(6px); }
+  12% { opacity: 1; transform: none; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- pads */
+.pads {
+  position: relative;
+  justify-self: center;
+  width: min(100%, 48vh);
+  width: min(100%, 48dvh);
+  aspect-ratio: 1 / 1;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.pads::before { /* ambient glow on the beat */
+  content: ""; position: absolute; inset: -14%; border-radius: 50%; z-index: 0; pointer-events: none;
+  background: radial-gradient(closest-side, var(--glow-soft), transparent);
+  opacity: calc(var(--pulse, 0) * var(--pulse-ambient));
+}
+.pad {
+  position: relative; z-index: 1;
+  border: 0; border-radius: 22px;
+  background: var(--c);
+  color: var(--pad-label);
+  box-shadow: inset 0 -6px 0 var(--pad-shade);
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(20px, 6vmin, 34px);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: pointer; touch-action: manipulation;
+  transition: filter 80ms, transform 80ms, box-shadow 80ms, background-color 0.4s;
+}
+.pad[data-pad="yellow"] { color: var(--pad-label-dark); }
+.pad.lit { filter: brightness(1.22) saturate(1.1); transform: translateY(3px); box-shadow: inset 0 -3px 0 var(--pad-shade); }
+body.night .pad.lit { filter: brightness(1.9) saturate(1.2); }
+
+/* ---------- night mode: only the light keeps time */
+body.night .count, body.night .callout { display: none; }
+body.night .mult { background: var(--band-edge); color: var(--ink); }
+
+/* ---------- overlays */
+.overlay {
+  position: fixed; inset: 0; z-index: 20;
+  display: flex; overflow-y: auto;
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.card {
+  margin: auto; width: min(100%, 440px);
+  display: grid; gap: 16px;
+  padding: 22px 20px 20px;
+  background: var(--card); border: 1px solid var(--card-edge); border-radius: 22px;
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.45);
+}
+.brand { display: grid; gap: 10px; }
+.title {
+  margin: 0;
+  font-family: var(--font-display); font-weight: 900; font-size: 50px; line-height: 0.9;
+  letter-spacing: 0.01em; text-transform: uppercase; text-wrap: balance;
+}
+.title.sm { font-size: 38px; }
+.title-bar { display: grid; grid-template-columns: repeat(4, 1fr); width: 132px; height: 6px; border-radius: 3px; overflow: hidden; }
+.title-bar i:nth-child(1) { background: var(--pad-red); }
+.title-bar i:nth-child(2) { background: var(--pad-blue); }
+.title-bar i:nth-child(3) { background: var(--pad-yellow); }
+.title-bar i:nth-child(4) { background: var(--pad-green); }
+.lede { margin: 0; font-size: 17px; line-height: 1.45; max-width: 36ch; }
+.small, .hint { margin: 0; font-size: 14px; line-height: 1.4; color: var(--ink-soft); }
+
+.example { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.example li {
+  display: grid; grid-template-columns: 6.4em minmax(0, 1fr) auto; column-gap: 10px; align-items: center;
+  min-height: 40px; border-bottom: 1px solid var(--rule);
+}
+.ex-caller { font-size: 15px; }
+.ex-move { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 16px; letter-spacing: 0.05em; text-transform: uppercase; }
+.ex-do { font-size: 13px; font-weight: 700; color: var(--ink-soft); text-align: right; }
+.ex-do.go { color: var(--hit); }
+
+.field { display: grid; gap: 8px; }
+.field-label { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+.seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 3px;
+  border: 1px solid var(--card-edge); border-radius: 13px; background: var(--paper);
+}
+.seg input, .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.seg label {
+  min-height: 44px; display: grid; place-items: center; border-radius: 10px;
+  font-weight: 700; cursor: pointer;
+}
+.seg input:checked + label { background: var(--ink); color: var(--sheet); }
+
+.switch { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; cursor: pointer; }
+.track { position: relative; width: 48px; height: 28px; border-radius: 14px; background: var(--rule); transition: background-color 0.2s; }
+.track::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 0.2s;
+}
+.switch input:checked + .track { background: var(--ink); }
+.switch input:checked + .track::after { transform: translateX(20px); }
+.sw-text { display: grid; gap: 2px; }
+.sw-text b { font-size: 16px; }
+.sw-text small { font-size: 13px; color: var(--ink-soft); line-height: 1.35; }
+.switch.is-disabled { opacity: 0.45; cursor: default; }
+
+.btn {
+  min-height: 52px; border-radius: 14px; cursor: pointer;
+  font-family: var(--font-display); font-weight: 900; font-size: 24px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.btn.primary { border: 0; background: var(--ink); color: var(--sheet); }
+.btn.ghost { border: 1px solid var(--card-edge); background: transparent; color: var(--ink); font-size: 19px; min-height: 46px; }
+.best { margin: 0; text-align: center; font-size: 14px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.best.new { color: var(--hit); font-weight: 700; }
+.keys { margin: 0; text-align: center; font-size: 12px; color: var(--ink-soft); }
+@media (hover: none) { .keys { display: none; } }
+.final { display: flex; align-items: baseline; gap: 10px; }
+.final-score { font-family: var(--font-display); font-weight: 900; font-size: 64px; line-height: 1; font-variant-numeric: tabular-nums; }
+.tally { margin: 0; font-size: 14px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+/* ---------- sizes */
+@media (max-width: 360px) {
+  :root { --caller-size: 15px; --move-size: 18px; --num-col: 2.2rem; }
+  .title { font-size: 42px; }
+}
+@media (min-width: 700px) and (min-height: 640px) {
+  :root { --line-h: 62px; --caller-size: 20px; --move-size: 25px; --num-col: 3.2rem; }
+  .num { font-size: 21px; }
+  .v { font-size: 30px; }
+}
+@media (min-aspect-ratio: 6/5) {
+  .app { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); column-gap: 20px; }
+  .hud { grid-column: 1 / -1; }
+  .pads { align-self: center; width: min(62vh, 46vw); width: min(62dvh, 46vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .script.stepped, .pad, .heart, .track, .track::after { transition: none; }
+  .callout.show { animation-name: callout-still; }
+}
+@keyframes callout-still {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.8-4.7-9.7-9.4C1 7.6 3.3 4 6.9 4c2.2 0 3.9 1.2 5.1 3 1.2-1.8 2.9-3 5.1-3 3.6 0 5.9 3.6 4.6 7.1-1.9 4.7-9.7 9.4-9.7 9.4z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></symbol>
+</svg>
+
+<div class="app" id="app">
+  <header class="hud">
+    <div class="stat"><span class="k">Round</span><span class="v" id="hudRound">1</span></div>
+    <div class="stat"><span class="k">Score</span><span class="v"><span id="hudScore">0</span><span class="mult" id="hudMult" hidden>×2</span></span></div>
+    <div class="hearts" id="hearts" role="img" aria-label="3 of 3 hearts left"></div>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="nightBtn" type="button" aria-pressed="false" aria-label="Night mode" title="Night mode"><svg aria-hidden="true"><use href="#i-moon"/></svg></button>
+    <button class="icon-btn" id="pauseBtn" type="button" aria-label="Pause" title="Pause" disabled><svg aria-hidden="true"><use href="#i-pause"/></svg></button>
+  </header>
+
+  <section class="sheet" id="sheet" aria-label="The written moves">
+    <div class="playline" id="playline" aria-hidden="true"><span class="lamp"></span><span class="count" id="count"></span></div>
+    <ol class="script" id="script"></ol>
+    <p class="callout" id="callout" aria-live="polite"></p>
+  </section>
+
+  <section class="pads" id="pads" aria-label="Pads">
+    <button class="pad" type="button" data-pad="red" style="--c: var(--pad-red)">Red</button>
+    <button class="pad" type="button" data-pad="blue" style="--c: var(--pad-blue)">Blue</button>
+    <button class="pad" type="button" data-pad="yellow" style="--c: var(--pad-yellow)">Yellow</button>
+    <button class="pad" type="button" data-pad="green" style="--c: var(--pad-green)">Green</button>
+  </section>
+</div>
+
+<div class="overlay" id="startOv">
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+    <div class="brand">
+      <h1 class="title" id="startTitle">Simon Writes</h1>
+      <span class="title-bar" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    </div>
+    <p class="lede">The moves are written down. Read each line and tap its color on the beat.</p>
+    <ul class="example" aria-label="How to read a line">
+      <li><span class="ex-caller">Simon says</span><span class="ex-move"><i class="chip" style="--chip: var(--pad-red)"></i>Red</span><span class="ex-do go">Tap red</span></li>
+      <li><span class="ex-caller"></span><span class="ex-move"><i class="chip" style="--chip: var(--pad-blue)"></i>Blue</span><span class="ex-do">Leave it</span></li>
+      <li><span class="ex-caller">Simone says</span><span class="ex-move"><i class="chip" style="--chip: var(--pad-green)"></i>Green</span><span class="ex-do">Leave it too</span></li>
+    </ul>
+    <p class="small">A clean round adds a line. A miss costs a heart.</p>
+
+    <div class="field">
+      <span class="field-label" id="lvlLabel">Level</span>
+      <div class="seg" role="radiogroup" aria-labelledby="lvlLabel">
+        <input type="radio" name="level" id="lvlEasy" value="easy"><label for="lvlEasy">Easy</label>
+        <input type="radio" name="level" id="lvlNormal" value="normal"><label for="lvlNormal">Normal</label>
+        <input type="radio" name="level" id="lvlHard" value="hard"><label for="lvlHard">Hard</label>
+      </div>
+      <p class="hint" id="lvlHint"></p>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="inkLabel">Ink</span>
+      <div class="seg" role="radiogroup" aria-labelledby="inkLabel">
+        <input type="radio" name="ink" id="inkPermanent" value="permanent"><label for="inkPermanent">Stays</label>
+        <input type="radio" name="ink" id="inkFading" value="fading"><label for="inkFading">Fades</label>
+      </div>
+      <p class="hint" id="inkHint"></p>
+    </div>
+
+    <label class="switch" for="optNight">
+      <input type="checkbox" id="optNight"><span class="track" aria-hidden="true"></span>
+      <span class="sw-text"><b>Night mode</b><small>Silent and dim. A soft light pulse keeps time.</small></span>
+    </label>
+    <label class="switch" id="soundRow" for="optSound">
+      <input type="checkbox" id="optSound"><span class="track" aria-hidden="true"></span>
+      <span class="sw-text"><b>Sound</b><small id="soundHint">Pad tones and a metronome tick.</small></span>
+    </label>
+
+    <button class="btn primary" id="startBtn" type="button" data-autofocus>Start</button>
+    <p class="best" id="bestLine"></p>
+    <p class="keys">Keyboard: 1 2 3 4 for the pads, Space to pause.</p>
+  </div>
+</div>
+
+<div class="overlay" id="pauseOv" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+    <h2 class="title sm" id="pauseTitle">Paused</h2>
+    <p class="lede">You get a fresh count-in before the next line.</p>
+    <label class="switch" for="pauseNight">
+      <input type="checkbox" id="pauseNight"><span class="track" aria-hidden="true"></span>
+      <span class="sw-text"><b>Night mode</b><small>Silent and dim. A soft light pulse keeps time.</small></span>
+    </label>
+    <button class="btn primary" id="resumeBtn" type="button" data-autofocus>Resume</button>
+    <button class="btn ghost" id="quitBtn" type="button">Quit to menu</button>
+  </div>
+</div>
+
+<div class="overlay" id="overOv" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <h2 class="title sm" id="overTitle">Out of hearts</h2>
+    <div class="final"><span class="final-score" id="overScore">0</span><span class="k">points</span></div>
+    <p class="lede" id="overDetail"></p>
+    <p class="tally" id="overTally"></p>
+    <p class="best" id="overBest"></p>
+    <button class="btn primary" id="againBtn" type="button" data-autofocus>Play again</button>
+    <button class="btn ghost" id="menuBtn" type="button">Change settings</button>
+  </div>
+</div>
+
+<script>
+/**
+ * Simon Writes: game engine
+ * ---------------------------------------------------------------------------
+ * A Simon-style rhythm game where the sequence is always written down.
+ * The challenge is reading and timing instead of memory:
+ *   - each line of the script is played on the beat,
+ *   - only lines that say exactly "Simon says" are obeyed,
+ *   - a clean round adds one line; a round with a miss repeats.
+ *
+ * Module rules
+ *   - Pure logic. No DOM, audio, timers or Date.now(). Every call takes `now`
+ *     in milliseconds (performance.now() in the browser), so tests drive time.
+ *   - Deterministic. A seeded PRNG (mulberry32) lives in the state, so a seed
+ *     always produces the same script.
+ *   - Serializable. All state is plain JSON (exportState / { restore }).
+ *
+ * Timeline model (per round)
+ *   beat b happens at  t0 + b * beatMs
+ *   line i is due at   beat COUNT_IN + i
+ *   beats before countInStart + COUNT_IN are count-in beats. After a resume,
+ *   t0 is re-anchored so the next unplayed line gets a fresh count-in.
+ *
+ * Loads as a browser global (window.SimonWrites) or a CommonJS module.
+ */
+(function (root, factory) {
+  'use strict';
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.SimonWrites = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  /** Pad ids in on-screen order: top-left, top-right, bottom-left, bottom-right. */
+  const PADS = Object.freeze(['red', 'blue', 'yellow', 'green']);
+
+  /** The only caller a player may obey. */
+  const SIMON = 'Simon says';
+
+  /** Near-miss callers used on trap lines once decoys unlock. */
+  const DECOYS = Object.freeze(['Simone says', 'Simon said', 'Simon sez', 'Simeon says', 'Salmon says', 'Simon asks']);
+
+  const COUNT_IN = 4;            // beats before line 0, and before the next line after a resume
+  const INTERMISSION_MS = 1600;  // breath between rounds
+  const MAX_TRAP_RUN = 2;        // never more than two trap lines in a row
+  const PULSE_DECAY = 5;         // pulse(now) = e^(-PULSE_DECAY * beatPhase)
+  const FADE_FROM = 2;           // clean plays of a line before its ink starts fading
+  const FADE_STEP = 0.34;        // opacity lost per further clean play
+  const STATE_VERSION = 1;
+
+  const POINTS = Object.freeze({ perfect: 100, good: 60, held: 50 });
+
+  /**
+   * Tuning per level. goodMs is the hit window on either side of the beat;
+   * windowMs() also caps it below half a beat so windows never overlap.
+   */
+  const DIFFICULTY = Object.freeze({
+    easy: Object.freeze({
+      startLength: 3, lives: 5, baseBpm: 72, bpmStep: 3, maxBpm: 112,
+      trapBase: 0, trapStep: 0, trapMax: 0, decoyFromRound: Infinity,
+      perfectMs: 90, goodMs: 220,
+    }),
+    normal: Object.freeze({
+      startLength: 4, lives: 3, baseBpm: 88, bpmStep: 4, maxBpm: 140,
+      trapBase: 0.12, trapStep: 0.02, trapMax: 0.32, decoyFromRound: 4,
+      perfectMs: 70, goodMs: 170,
+    }),
+    hard: Object.freeze({
+      startLength: 5, lives: 3, baseBpm: 100, bpmStep: 5, maxBpm: 168,
+      trapBase: 0.2, trapStep: 0.025, trapMax: 0.4, decoyFromRound: 1,
+      perfectMs: 55, goodMs: 130,
+    }),
+  });
+
+  const INK_MODES = Object.freeze(['permanent', 'fading']);
+  const PHASES = Object.freeze(['ready', 'playing', 'intermission', 'over']);
+
+  /** Score multiplier for a running combo: x1, then +1 every 8 hits, capped at x4. */
+  const multiplier = (combo) => Math.min(4, 1 + Math.floor(combo / 8));
+
+  // ---------------------------------------------------------------- helpers
+
+  /** mulberry32 step; the PRNG state is s.rng so it survives export/restore. */
+  function rand(s) {
+    s.rng = (s.rng + 0x6d2b79f5) | 0;
+    let t = s.rng;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  function toSeed(seed) {
+    if (seed === undefined) return Math.floor(Math.random() * 0x100000000) | 0;
+    const n = Number(seed);
+    if (!Number.isFinite(n)) throw new TypeError(`Seed must be a finite number, got ${seed}`);
+    return Math.trunc(n) | 0;
+  }
+
+  function assertDifficulty(d) {
+    if (!Object.prototype.hasOwnProperty.call(DIFFICULTY, d)) {
+      throw new RangeError(`Unknown difficulty "${d}". Use easy, normal or hard.`);
+    }
+  }
+
+  function assertInk(ink) {
+    if (!INK_MODES.includes(ink)) throw new RangeError(`Unknown ink mode "${ink}". Use permanent or fading.`);
+  }
+
+  function trailingTraps(lines) {
+    let n = 0;
+    for (let i = lines.length - 1; i >= 0 && !lines[i].obey; i--) n++;
+    return n;
+  }
+
+  /** Writes one new line for the state's current round. The caller appends it. */
+  function makeLine(s, cfg) {
+    const pad = PADS[Math.floor(rand(s) * PADS.length)];
+    const chance = Math.min(cfg.trapMax, cfg.trapBase + cfg.trapStep * (s.round - 1));
+    const roll = rand(s);
+    const isTrap = s.lines.length > 0 && trailingTraps(s.lines) < MAX_TRAP_RUN && roll < chance;
+    let caller = SIMON;
+    if (isTrap) {
+      const decoy = s.round >= cfg.decoyFromRound && rand(s) < 0.6;
+      caller = decoy ? DECOYS[Math.floor(rand(s) * DECOYS.length)] : null;
+    }
+    return { pad, obey: !isTrap, caller, cleanStreak: 0 };
+  }
+
+  function isValidLine(l) {
+    if (!l || !PADS.includes(l.pad) || typeof l.obey !== 'boolean') return false;
+    if (!Number.isInteger(l.cleanStreak) || l.cleanStreak < 0) return false;
+    if (l.obey) return l.caller === SIMON;
+    return l.caller === null || (typeof l.caller === 'string' && l.caller !== SIMON);
+  }
+
+  function newState({ seed, difficulty = 'normal', ink = 'permanent' } = {}) {
+    assertDifficulty(difficulty);
+    assertInk(ink);
+    const cfg = DIFFICULTY[difficulty];
+    const s = {
+      version: STATE_VERSION,
+      difficulty,
+      ink,
+      rng: toSeed(seed),
+      lines: [],
+      results: [],
+      round: 1,
+      bpm: cfg.baseBpm,
+      lives: cfg.lives,
+      score: 0,
+      combo: 0,
+      maxCombo: 0,
+      tally: { perfect: 0, good: 0, held: 0, miss: 0 },
+      phase: 'ready',
+      paused: false,
+      t0: 0,
+      countInStart: 0,
+      nextBeat: 0,
+      cursor: 0,
+      roundMisses: 0,
+      grow: false,
+      intermissionUntil: 0,
+    };
+    for (let i = 0; i < cfg.startLength; i++) s.lines.push(makeLine(s, cfg));
+    s.results = s.lines.map(() => null);
+    return s;
+  }
+
+  function restoreState(data) {
+    if (!data || data.version !== STATE_VERSION) throw new TypeError('Saved game is from an unknown version.');
+    assertDifficulty(data.difficulty);
+    assertInk(data.ink);
+    if (!Array.isArray(data.lines) || data.lines.length === 0 || !data.lines.every(isValidLine)) {
+      throw new TypeError('Saved game has an invalid script.');
+    }
+    if (!Array.isArray(data.results) || data.results.length !== data.lines.length) {
+      throw new TypeError('Saved game results do not match its script.');
+    }
+    if (!PHASES.includes(data.phase)) throw new TypeError(`Saved game has an unknown phase "${data.phase}".`);
+    const s = JSON.parse(JSON.stringify(data));
+    // Wall-clock time has moved on since the snapshot; never resume blind.
+    if (s.phase === 'playing' || s.phase === 'intermission') s.paused = true;
+    return s;
+  }
+
+  // ---------------------------------------------------------------- game
+
+  /**
+   * Creates a game.
+   * @param {object} [options]
+   * @param {number} [options.seed]        PRNG seed; same seed, same script.
+   * @param {'easy'|'normal'|'hard'} [options.difficulty='normal']
+   * @param {'permanent'|'fading'} [options.ink='permanent']
+   * @param {object} [options.restore]     A value from exportState(); other options are ignored.
+   */
+  function createGame(options = {}) {
+    const s = options.restore !== undefined ? restoreState(options.restore) : newState(options);
+    const cfg = () => DIFFICULTY[s.difficulty];
+
+    const beatMs = () => 60000 / s.bpm;
+    const beatTime = (b) => s.t0 + b * beatMs();
+    const dueTime = (i) => beatTime(COUNT_IN + i);
+    const lastBeat = () => COUNT_IN + s.lines.length - 1;
+    const windowMs = () => Math.min(cfg().goodMs, beatMs() * 0.45);
+
+    function describeBeat(b) {
+      const countEnd = s.countInStart + COUNT_IN;
+      const isCount = b < countEnd;
+      return {
+        type: 'beat',
+        key: `${s.round}:${s.t0}:${b}`,
+        beat: b,
+        at: beatTime(b),
+        count: isCount ? countEnd - b : null,
+        line: isCount ? null : b - COUNT_IN,
+      };
+    }
+
+    function succeed(i, judgement, dt, ev) {
+      s.results[i] = judgement;
+      s.tally[judgement] += 1;
+      s.combo += 1;
+      s.maxCombo = Math.max(s.maxCombo, s.combo);
+      const mult = multiplier(s.combo);
+      const points = POINTS[judgement] * mult;
+      s.score += points;
+      ev.push({ type: 'hit', line: i, judgement, dt, points, combo: s.combo, multiplier: mult });
+    }
+
+    function fault(i, reason, pad, ev) {
+      s.results[i] = 'miss';
+      s.tally.miss += 1;
+      s.lines[i].cleanStreak = 0;
+      s.combo = 0;
+      s.roundMisses += 1;
+      s.lives -= 1;
+      ev.push({ type: 'miss', line: i, reason, pad, lives: s.lives });
+      if (s.lives <= 0) {
+        s.phase = 'over';
+        ev.push({ type: 'gameOver', score: s.score, round: s.round, maxCombo: s.maxCombo, tally: { ...s.tally } });
+      }
+    }
+
+    function beginRound(at, grow, ev) {
+      const c = cfg();
+      if (grow) {
+        s.round += 1;
+        s.bpm = Math.min(c.maxBpm, s.bpm + c.bpmStep);
+        s.lines.push(makeLine(s, c));
+      }
+      s.results = s.lines.map(() => null);
+      s.roundMisses = 0;
+      s.cursor = 0;
+      s.t0 = at;
+      s.countInStart = 0;
+      s.nextBeat = 0;
+      s.phase = 'playing';
+      s.grow = false;
+      ev.push({ type: 'roundStart', round: s.round, length: s.lines.length, bpm: s.bpm, repeat: !grow });
+    }
+
+    function endRound(endTime, ev) {
+      const clean = s.roundMisses === 0;
+      s.lines.forEach((line, i) => {
+        if (s.results[i] !== null && s.results[i] !== 'miss') line.cleanStreak += 1;
+      });
+      s.grow = clean;
+      s.phase = 'intermission';
+      s.intermissionUntil = endTime + INTERMISSION_MS;
+      ev.push({ type: 'roundEnd', round: s.round, clean, next: clean ? 'grow' : 'repeat' });
+    }
+
+    /** Moves the timeline to `now`: emits beats, expires lines, ends/starts rounds. */
+    function advance(now, ev) {
+      if (s.paused) return;
+      if (s.phase === 'intermission' && now >= s.intermissionUntil) beginRound(s.intermissionUntil, s.grow, ev);
+      if (s.phase !== 'playing') return;
+
+      while (s.nextBeat <= lastBeat() && beatTime(s.nextBeat) <= now) {
+        ev.push(describeBeat(s.nextBeat));
+        s.nextBeat += 1;
+      }
+
+      const w = windowMs();
+      while (s.cursor < s.lines.length && now > dueTime(s.cursor) + w) {
+        const i = s.cursor;
+        s.cursor += 1;
+        if (s.results[i] === null) {
+          if (s.lines[i].obey) fault(i, 'late', null, ev);
+          else succeed(i, 'held', null, ev);
+          if (s.phase === 'over') return;
+        }
+      }
+
+      if (s.cursor >= s.lines.length) endRound(dueTime(s.lines.length - 1) + w, ev);
+    }
+
+    // ------------------------------------------------------------ public API
+
+    /** Starts round 1 with its count-in beginning at `now`. */
+    function start(now) {
+      const ev = [];
+      if (s.phase !== 'ready') return ev;
+      beginRound(now, false, ev);
+      return ev;
+    }
+
+    /** Advances to `now`. Call once per animation frame. Returns events. */
+    function update(now) {
+      const ev = [];
+      advance(now, ev);
+      return ev;
+    }
+
+    /**
+     * Judges a tap on `pad` at time `now`. At most one line is resolved per
+     * tap; taps with no line in its window are reported as 'stray' and cost
+     * nothing.
+     */
+    function tap(pad, now) {
+      if (!PADS.includes(pad)) throw new RangeError(`Unknown pad "${pad}".`);
+      const ev = [];
+      advance(now, ev);
+      if (s.paused || s.phase !== 'playing') return ev;
+
+      const i = s.cursor;
+      const w = windowMs();
+      const dt = i < s.lines.length ? now - dueTime(i) : null;
+      if (dt === null || dt < -w || s.results[i] !== null) {
+        ev.push({ type: 'stray', pad, dt });
+        return ev;
+      }
+
+      const line = s.lines[i];
+      if (!line.obey) fault(i, 'trap', pad, ev);
+      else if (line.pad !== pad) fault(i, 'wrong', pad, ev);
+      else succeed(i, Math.abs(dt) <= cfg().perfectMs ? 'perfect' : 'good', dt, ev);
+      return ev;
+    }
+
+    /** Freezes the game. Lines can't expire while paused. */
+    function pause(now) {
+      const ev = [];
+      if (s.paused || (s.phase !== 'playing' && s.phase !== 'intermission')) return ev;
+      advance(now, ev);
+      if (s.phase === 'over') return ev;
+      s.paused = true;
+      ev.push({ type: 'paused' });
+      return ev;
+    }
+
+    /**
+     * Unfreezes the game. Mid-round, the next unplayed line gets a fresh
+     * count-in that starts at `now`, so nobody has to jump back in cold.
+     */
+    function resume(now) {
+      const ev = [];
+      if (!s.paused) return ev;
+      s.paused = false;
+      if (s.phase === 'intermission') {
+        s.intermissionUntil = now + INTERMISSION_MS;
+      } else if (s.phase === 'playing') {
+        while (s.cursor < s.lines.length && s.results[s.cursor] !== null) s.cursor += 1;
+        if (s.cursor >= s.lines.length) {
+          endRound(now, ev);
+        } else {
+          const k = s.cursor;
+          s.t0 = now - k * beatMs();
+          s.countInStart = k;
+          s.nextBeat = k;
+        }
+      }
+      ev.push({ type: 'resumed' });
+      return ev;
+    }
+
+    /** Fraction of a beat since the last beat (0..1+), or null when no beat is running. */
+    function beatPhase(now) {
+      if (s.paused || s.phase !== 'playing') return null;
+      const bms = beatMs();
+      const b = Math.floor((now - s.t0) / bms + 1e-6);
+      if (b < s.countInStart) return null;
+      const last = Math.min(b, lastBeat());
+      return Math.max(0, (now - beatTime(last)) / bms);
+    }
+
+    /** Light level for the beat lamp: 1 on the beat, decaying to ~0 by the next one. */
+    function pulse(now) {
+      const p = beatPhase(now);
+      return p === null ? 0 : Math.exp(-PULSE_DECAY * p);
+    }
+
+    /**
+     * Script position in lines: n means line n sits on the reading line.
+     * Holds one line short of the next line to play during a count-in.
+     * Returns null when the view should hold still (paused, between rounds, over).
+     */
+    function scrollPosition(now) {
+      if (s.phase === 'ready') return -1;
+      if (s.paused || s.phase !== 'playing') return null;
+      const raw = (now - s.t0) / beatMs() - COUNT_IN;
+      return Math.min(s.lines.length, Math.max(raw, s.countInStart - 1));
+    }
+
+    /** Beats not yet emitted that fall within `horizonMs` of `now` (for audio lookahead). */
+    function upcomingBeats(now, horizonMs) {
+      if (s.paused || s.phase !== 'playing') return [];
+      const out = [];
+      for (let b = s.nextBeat; b <= lastBeat() && beatTime(b) <= now + horizonMs; b++) out.push(describeBeat(b));
+      return out;
+    }
+
+    /** Ink opacity for line i: 1 when permanent; fades with clean plays when fading. */
+    function inkOpacity(i) {
+      if (s.ink !== 'fading') return 1;
+      const k = s.lines[i] ? s.lines[i].cleanStreak : 0;
+      return k < FADE_FROM ? 1 : Math.max(0, Math.round((1 - FADE_STEP * (k - FADE_FROM + 1)) * 100) / 100);
+    }
+
+    return Object.freeze({
+      /** Live state. Treat as read-only; use exportState() for a copy. */
+      get state() { return s; },
+      start,
+      update,
+      tap,
+      pause,
+      resume,
+      beatPhase,
+      pulse,
+      scrollPosition,
+      upcomingBeats,
+      inkOpacity,
+      beatMs,
+      windowMs,
+      dueTime,
+      exportState: () => JSON.parse(JSON.stringify(s)),
+    });
+  }
+
+  return Object.freeze({
+    createGame,
+    multiplier,
+    PADS,
+    SIMON,
+    DECOYS,
+    DIFFICULTY,
+    POINTS,
+    COUNT_IN,
+    INTERMISSION_MS,
+    PULSE_DECAY,
+  });
+});
+
+</script>
+<script>
+(() => {
+  'use strict';
+
+  const SW = window.SimonWrites;
+  const root = document.documentElement;
+  const $ = (id) => document.getElementById(id);
+
+  const STORE_KEY = 'simon-writes:v1';
+  const LEVELS = ['easy', 'normal', 'hard'];
+  const LEVEL_NAME = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
+  const LEVEL_HINT = {
+    easy: 'Starts with 3 lines at a slow tempo. 5 hearts. Every line is a Simon line.',
+    normal: 'Starts with 4 lines. 3 hearts. Some lines leave Simon out.',
+    hard: 'Starts with 5 lines, faster. Near-miss callers from the first round.',
+  };
+  const INK_HINT = {
+    permanent: 'Every line stays readable.',
+    fading: 'Lines you play cleanly fade out, so memory creeps back in.',
+  };
+  const COLOR_NAME = { red: 'Red', blue: 'Blue', yellow: 'Yellow', green: 'Green' };
+  const KEYMAP = { 1: 'red', 2: 'blue', 3: 'yellow', 4: 'green', q: 'red', w: 'blue', a: 'yellow', s: 'green', r: 'red', b: 'blue', y: 'yellow', g: 'green' };
+  const MISS_TEXT = { late: 'Too late', wrong: 'Wrong color', trap: 'Simon didn’t say' };
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  const el = {
+    sheet: $('sheet'), script: $('script'), playline: $('playline'), count: $('count'), callout: $('callout'), pads: $('pads'),
+    hudRound: $('hudRound'), hudScore: $('hudScore'), hudMult: $('hudMult'), hearts: $('hearts'),
+    nightBtn: $('nightBtn'), pauseBtn: $('pauseBtn'),
+    startOv: $('startOv'), pauseOv: $('pauseOv'), overOv: $('overOv'),
+    startBtn: $('startBtn'), resumeBtn: $('resumeBtn'), quitBtn: $('quitBtn'), againBtn: $('againBtn'), menuBtn: $('menuBtn'),
+    optNight: $('optNight'), pauseNight: $('pauseNight'), optSound: $('optSound'), soundRow: $('soundRow'), soundHint: $('soundHint'),
+    lvlHint: $('lvlHint'), inkHint: $('inkHint'), bestLine: $('bestLine'),
+    overScore: $('overScore'), overDetail: $('overDetail'), overTally: $('overTally'), overBest: $('overBest'),
+    themeColor: $('themeColor'),
+  };
+
+  // ------------------------------------------------------------ settings & best scores (per viewer, best effort)
+  const store = {
+    load() { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; } },
+    save(data) { try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch { /* storage unavailable */ } },
+  };
+  function cleanSettings(v) {
+    const o = v && typeof v === 'object' ? v : {};
+    return {
+      level: LEVELS.includes(o.level) ? o.level : 'normal',
+      ink: o.ink === 'fading' ? 'fading' : 'permanent',
+      night: o.night === true,
+      sound: o.sound !== false,
+    };
+  }
+  function cleanBest(v) {
+    const out = {};
+    for (const l of LEVELS) out[l] = v && Number.isFinite(v[l]) ? Math.max(0, v[l]) : 0;
+    return out;
+  }
+  const saved = store.load();
+  const settings = cleanSettings(saved.settings);
+  const best = cleanBest(saved.best);
+  const persist = () => store.save({ settings, best });
+
+  // ------------------------------------------------------------ sound: pad tones + look-ahead metronome
+  const sound = (() => {
+    const FREQ = { red: 440, blue: 329.63, yellow: 277.18, green: 220 };
+    const queued = new Map();
+    let ctx = null;
+    let out = null;
+    function ready() {
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        try { ctx = new AC(); } catch { return null; }
+        out = ctx.createGain();
+        out.gain.value = 0.6;
+        out.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      return ctx;
+    }
+    function blip(freq, when, dur, type, peak) {
+      const osc = ctx.createOscillator();
+      const env = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      env.gain.setValueAtTime(0.0001, when);
+      env.gain.exponentialRampToValueAtTime(peak, when + 0.008);
+      env.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      osc.connect(env);
+      env.connect(out);
+      osc.start(when);
+      osc.stop(when + dur + 0.03);
+      return osc;
+    }
+    const enabled = () => settings.sound && !settings.night && ctx !== null && ctx.state === 'running';
+    return {
+      unlock: ready,
+      pad(name) { if (enabled()) blip(FREQ[name], ctx.currentTime, 0.22, 'triangle', 0.32); },
+      miss() { if (enabled()) blip(98, ctx.currentTime, 0.2, 'sawtooth', 0.1); },
+      /** Schedules metronome ticks on the audio clock so they don't jitter with the frame rate. */
+      schedule(beats, now) {
+        if (!enabled()) return;
+        for (const b of beats) {
+          if (queued.has(b.key) || b.at < now - 40) continue;
+          const when = ctx.currentTime + Math.max(0, b.at - now) / 1000;
+          queued.set(b.key, { at: b.at, osc: blip(b.count ? 1568 : 1046.5, when, 0.045, 'square', b.count ? 0.08 : 0.045) });
+        }
+        for (const [key, q] of queued) if (q.at < now - 1000) queued.delete(key);
+      },
+      cancel() {
+        for (const q of queued.values()) { try { q.osc.stop(); } catch { /* already stopped */ } }
+        queued.clear();
+      },
+    };
+  })();
+
+  // ------------------------------------------------------------ keep the screen awake while playing
+  let wakeLock = null;
+  async function holdScreen(on) {
+    try {
+      if (on && !wakeLock && 'wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } else if (!on && wakeLock) {
+        await wakeLock.release();
+        wakeLock = null;
+      }
+    } catch { wakeLock = null; }
+  }
+
+  // ------------------------------------------------------------ view state
+  let game = null;
+  const view = { lineH: 50, readY: 58, idx: null, y: null };
+  const flashTimers = new Map();
+
+  function span(cls, text) {
+    const s = document.createElement('span');
+    s.className = cls;
+    if (text) s.textContent = text;
+    return s;
+  }
+
+  function heart() {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'heart');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#i-heart');
+    svg.append(use);
+    return svg;
+  }
+
+  function applyResult(li, result) {
+    li.dataset.state = result;
+    li.querySelector('.mark').textContent = result === 'miss' ? '✗' : '✓';
+  }
+
+  function renderScript() {
+    const { lines, results } = game.state;
+    const frag = document.createDocumentFragment();
+    lines.forEach((line, i) => {
+      const li = document.createElement('li');
+      li.className = 'line';
+      li.style.setProperty('--chip', `var(--pad-${line.pad})`);
+      li.style.setProperty('--ink-a', String(game.inkOpacity(i)));
+      const move = span('move txt');
+      move.append(span('chip'), document.createTextNode(COLOR_NAME[line.pad]));
+      li.append(span('num', String(i + 1).padStart(2, '0')), span('caller txt', line.caller || ''), move, span('mark'));
+      if (results[i]) applyResult(li, results[i]);
+      frag.append(li);
+    });
+    el.script.replaceChildren(frag);
+    view.idx = null;
+    measure();
+  }
+
+  function measure() {
+    const first = el.script.firstElementChild;
+    view.lineH = first ? first.getBoundingClientRect().height : view.lineH;
+    view.readY = el.playline.offsetTop;
+    view.y = null;
+  }
+
+  /** Day: the script glides so each line crosses the reading line on its beat. Night: it steps, and only the light keeps time. */
+  function paintScroll(now) {
+    const pos = game.scrollPosition(now);
+    if (pos === null) return;
+    const stepped = settings.night || reducedMotion.matches;
+    el.script.classList.toggle('stepped', stepped);
+    const p = stepped ? Math.round(pos) : pos;
+    const y = Math.round((view.readY - p * view.lineH) * 10) / 10;
+    if (y !== view.y) {
+      el.script.style.transform = `translate3d(0, ${y}px, 0)`;
+      view.y = y;
+    }
+    const idx = Math.round(pos);
+    if (idx !== view.idx) {
+      el.script.children[view.idx]?.classList.remove('current');
+      el.script.children[idx]?.classList.add('current');
+      view.idx = idx;
+    }
+  }
+
+  function inGame() {
+    const st = game && game.state;
+    return !!st && (st.phase === 'playing' || st.phase === 'intermission');
+  }
+
+  function paintHud() {
+    const st = game.state;
+    const max = SW.DIFFICULTY[st.difficulty].lives;
+    el.hudRound.textContent = String(st.round);
+    el.hudScore.textContent = st.score.toLocaleString();
+    const m = SW.multiplier(st.combo);
+    el.hudMult.textContent = `×${m}`;
+    el.hudMult.hidden = m < 2;
+    if (el.hearts.childElementCount !== max) el.hearts.replaceChildren(...Array.from({ length: max }, heart));
+    Array.from(el.hearts.children).forEach((h, i) => h.classList.toggle('lost', i >= st.lives));
+    el.hearts.setAttribute('aria-label', `${Math.max(0, st.lives)} of ${max} hearts left`);
+    el.pauseBtn.disabled = !inGame();
+  }
+
+  function say(text, tone) {
+    el.callout.textContent = text;
+    el.callout.className = 'callout';
+    void el.callout.offsetWidth; // restart the animation
+    el.callout.className = `callout show${tone ? ` ${tone}` : ''}`;
+  }
+
+  function ouch() {
+    el.sheet.classList.add('ouch');
+    setTimeout(() => el.sheet.classList.remove('ouch'), 260);
+    if (!settings.night) { try { navigator.vibrate?.(40); } catch { /* not allowed here */ } }
+  }
+
+  function flash(pad) {
+    const btn = el.pads.querySelector(`[data-pad="${pad}"]`);
+    if (!btn) return;
+    btn.classList.add('lit');
+    clearTimeout(flashTimers.get(pad));
+    flashTimers.set(pad, setTimeout(() => btn.classList.remove('lit'), 130));
+  }
+
+  // ------------------------------------------------------------ engine events -> screen
+  function handle(events) {
+    for (const e of events) {
+      switch (e.type) {
+        case 'beat':
+          el.count.textContent = e.count ? String(e.count) : '';
+          break;
+        case 'hit': {
+          const li = el.script.children[e.line];
+          if (li) applyResult(li, e.judgement);
+          const label = e.judgement === 'held' ? 'Held' : e.judgement === 'perfect' ? 'Perfect' : 'Good';
+          say(e.multiplier > 1 ? `${label} ×${e.multiplier}` : label);
+          paintHud();
+          break;
+        }
+        case 'miss': {
+          const li = el.script.children[e.line];
+          if (li) applyResult(li, 'miss');
+          say(MISS_TEXT[e.reason], 'bad');
+          sound.miss();
+          ouch();
+          paintHud();
+          break;
+        }
+        case 'roundEnd':
+          el.count.textContent = '';
+          say(e.clean ? 'Clean round. One more line.' : 'Again. A clean run adds a line.', e.clean ? '' : 'bad');
+          break;
+        case 'roundStart':
+          renderScript();
+          paintHud();
+          el.count.textContent = '';
+          break;
+        case 'gameOver':
+          finish(e);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------ the frame loop
+  function frame() {
+    if (game) {
+      const now = performance.now();
+      const st = game.state;
+      if (!st.paused && (st.phase === 'playing' || st.phase === 'intermission')) {
+        const ahead = game.upcomingBeats(now, 120);
+        const events = game.update(now);
+        sound.schedule(ahead.concat(events.filter((e) => e.type === 'beat')), now);
+        handle(events);
+      }
+      // The whole night-mode clock: 1 on the beat, decaying to ~0 before the next one.
+      root.style.setProperty('--pulse', game.pulse(now).toFixed(3));
+      paintScroll(now);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ------------------------------------------------------------ input
+  /** High-resolution input time when the browser provides it, so taps are judged when they happened. */
+  function eventTime(e) {
+    const now = performance.now();
+    const t = e && e.timeStamp;
+    return t > 0 && Math.abs(now - t) < 1000 ? t : now;
+  }
+
+  function press(pad, t) {
+    flash(pad);
+    sound.pad(pad);
+    if (!game || game.state.paused || game.state.phase !== 'playing') return;
+    handle(game.tap(pad, t));
+  }
+
+  for (const btn of el.pads.querySelectorAll('.pad')) {
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.button > 0) return;
+      e.preventDefault();
+      press(btn.dataset.pad, eventTime(e));
+    });
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  const overlayOpen = () => !el.startOv.hidden || !el.pauseOv.hidden || !el.overOv.hidden;
+
+  document.addEventListener('keydown', (e) => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === ' ' || k === 'escape' || k === 'p') {
+      if (inGame()) {
+        e.preventDefault();
+        if (game.state.paused) resumeGame(); else pauseGame();
+      }
+      return;
+    }
+    const pad = KEYMAP[k];
+    if (pad && !overlayOpen()) {
+      e.preventDefault();
+      press(pad, eventTime(e));
+    }
+  });
+
+  // ------------------------------------------------------------ flow
+  function openOverlay(ov) {
+    for (const o of [el.startOv, el.pauseOv, el.overOv]) o.hidden = o !== ov;
+    if (ov) ov.querySelector('[data-autofocus]')?.focus({ preventScroll: true });
+  }
+
+  function randomSeed() {
+    try { return crypto.getRandomValues(new Uint32Array(1))[0]; } catch { return Math.floor(Math.random() * 2 ** 32); }
+  }
+
+  /** A fresh, unstarted game. Its script is what you see behind the menu and what you will play. */
+  function newGame() {
+    game = SW.createGame({ seed: randomSeed(), difficulty: settings.level, ink: settings.ink });
+    renderScript();
+    paintHud();
+    el.count.textContent = '';
+  }
+
+  function startGame() {
+    if (!game || game.state.phase !== 'ready') newGame();
+    sound.unlock();
+    openOverlay(null);
+    handle(game.start(performance.now() + 450));
+    paintHud();
+    holdScreen(true);
+  }
+
+  function pauseGame() {
+    if (!inGame() || game.state.paused) return;
+    handle(game.pause(performance.now()));
+    if (game.state.phase === 'over') return;
+    sound.cancel();
+    holdScreen(false);
+    el.count.textContent = '';
+    openOverlay(el.pauseOv);
+  }
+
+  function resumeGame() {
+    if (!game || !game.state.paused) return;
+    sound.unlock();
+    openOverlay(null);
+    handle(game.resume(performance.now() + 250));
+    holdScreen(true);
+  }
+
+  function finish(e) {
+    sound.cancel();
+    holdScreen(false);
+    const level = game.state.difficulty;
+    const isBest = e.score > best[level];
+    if (isBest) best[level] = e.score;
+    persist();
+    el.overScore.textContent = e.score.toLocaleString();
+    el.overDetail.textContent = `Reached round ${e.round}. Longest combo: ${e.maxCombo}.`;
+    const t = e.tally;
+    el.overTally.textContent = `${t.perfect} perfect · ${t.good} good · ${t.held} held · ${t.miss} missed`;
+    el.overBest.textContent = isBest ? `New best on ${LEVEL_NAME[level]}!` : `Best on ${LEVEL_NAME[level]}: ${best[level].toLocaleString()}`;
+    el.overBest.classList.toggle('new', isBest);
+    paintHud();
+    setTimeout(() => openOverlay(el.overOv), 650);
+  }
+
+  // ------------------------------------------------------------ settings UI
+  function paintBest() {
+    const n = best[settings.level];
+    el.bestLine.textContent = n > 0 ? `Best on ${LEVEL_NAME[settings.level]}: ${n.toLocaleString()}` : `No best score on ${LEVEL_NAME[settings.level]} yet`;
+  }
+
+  function syncForm() {
+    for (const r of document.querySelectorAll('input[name="level"]')) r.checked = r.value === settings.level;
+    for (const r of document.querySelectorAll('input[name="ink"]')) r.checked = r.value === settings.ink;
+    el.lvlHint.textContent = LEVEL_HINT[settings.level];
+    el.inkHint.textContent = INK_HINT[settings.ink];
+    el.optNight.checked = settings.night;
+    el.pauseNight.checked = settings.night;
+    el.optSound.checked = settings.sound && !settings.night;
+    el.optSound.disabled = settings.night;
+    el.soundRow.classList.toggle('is-disabled', settings.night);
+    el.soundHint.textContent = settings.night ? 'Off in night mode.' : 'Pad tones and a metronome tick.';
+    paintBest();
+  }
+
+  function applyNight() {
+    document.body.classList.toggle('night', settings.night);
+    el.nightBtn.setAttribute('aria-pressed', String(settings.night));
+    if (settings.night) sound.cancel();
+    el.themeColor.setAttribute('content', getComputedStyle(document.body).getPropertyValue('--paper').trim() || '#ECEFF4');
+    view.y = null;
+    syncForm();
+  }
+
+  function setNight(on) {
+    settings.night = on;
+    persist();
+    applyNight();
+  }
+
+  for (const r of document.querySelectorAll('input[name="level"]')) {
+    r.addEventListener('change', () => { settings.level = r.value; persist(); syncForm(); newGame(); });
+  }
+  for (const r of document.querySelectorAll('input[name="ink"]')) {
+    r.addEventListener('change', () => { settings.ink = r.value; persist(); syncForm(); newGame(); });
+  }
+  el.optNight.addEventListener('change', () => setNight(el.optNight.checked));
+  el.pauseNight.addEventListener('change', () => setNight(el.pauseNight.checked));
+  el.nightBtn.addEventListener('click', () => setNight(!settings.night));
+  el.optSound.addEventListener('change', () => {
+    settings.sound = el.optSound.checked;
+    persist();
+    if (settings.sound) sound.unlock(); else sound.cancel();
+  });
+
+  el.startBtn.addEventListener('click', startGame);
+  el.pauseBtn.addEventListener('click', pauseGame);
+  el.resumeBtn.addEventListener('click', resumeGame);
+  el.quitBtn.addEventListener('click', () => { holdScreen(false); newGame(); openOverlay(el.startOv); });
+  el.againBtn.addEventListener('click', () => { newGame(); startGame(); });
+  el.menuBtn.addEventListener('click', () => { newGame(); openOverlay(el.startOv); });
+
+  // Lock screen, app switch, or tab change: stop the clock so nothing is missed while away.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+  window.addEventListener('pagehide', pauseGame);
+  window.addEventListener('resize', measure);
+  document.fonts?.ready.then(measure).catch(() => {});
+
+  // ------------------------------------------------------------ boot (survives a live republish mid-game)
+  function snapshot() {
+    const live = inGame() ? game.exportState() : null;
+    return { settings: { ...settings }, best: { ...best }, game: live };
+  }
+
+  function boot(data) {
+    const d = data || {};
+    if (d.settings) Object.assign(settings, cleanSettings(d.settings));
+    if (d.best) Object.assign(best, cleanBest(d.best));
+    applyNight();
+    let restored = false;
+    if (d.game) {
+      try {
+        game = SW.createGame({ restore: d.game });
+        restored = true;
+      } catch { game = null; }
+    }
+    if (restored) {
+      renderScript();
+      paintHud();
+      openOverlay(el.pauseOv);
+    } else {
+      newGame();
+      openOverlay(el.startOv);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  window.claude?.hot?.snapshot?.(snapshot);
+  window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+})();
+</script>
+</body>
+</html>
