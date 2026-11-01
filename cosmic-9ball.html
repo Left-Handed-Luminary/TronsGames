@@ -579,7 +579,7 @@
     <!-- Bedtime Meadow Footer Ribbon -->
     <div class="footer-bar">
       <div>
-        <span>Tap/drag on table to aim • Release or tap Shoot to strike • Lowest ball must be struck first</span>
+        <span>Drag the cue stick to aim, or tap the table to aim there • Tap Shoot to strike • Lowest ball must be struck first</span>
       </div>
       <div style="display: flex; gap: 12px; align-items: center;">
         <button id="btn-make-sheep-jump">🐑 Jump Fence Now</button>
@@ -800,6 +800,8 @@
       aimAngle: 0,
       power: 45,
       isDraggingAim: false,
+      aimDragMode: null,      // 'stick' (grabbed the cue) | 'target' (tapped a point)
+      stickGrabOffset: 0,
       isBallsMoving: false,
 
       ballInHand: false,
@@ -1172,55 +1174,7 @@
               }
             }
 
-            // Check pocket suction
-            for (let p = 0; p < pockets.length; p++) {
-              const poc = pockets[p];
-              const dist = Math.hypot(b.x - poc.x, b.y - poc.y);
-              if (dist < this.table.pocketRadius * 0.95) {
-                b.isPocketed = true;
-                b.vx = 0;
-                b.vy = 0;
-                this.ballsPocketedThisShot.push(b);
-                AudioEngine.playPocketChime(b.num === 9);
-                break;
-              }
-            }
-
-            if (b.isPocketed) continue;
-
-            // Cushion bounces
-            if (b.x - b.radius < bounds.minX) {
-              const inCorner = (b.y < bounds.minY + 30) || (b.y > bounds.maxY - 30);
-              if (!inCorner) {
-                b.x = bounds.minX + b.radius;
-                b.vx = -b.vx * cushionRestitution;
-                AudioEngine.playCushionBounce(Math.abs(b.vx));
-              }
-            }
-            if (b.x + b.radius > bounds.maxX) {
-              const inCorner = (b.y < bounds.minY + 30) || (b.y > bounds.maxY - 30);
-              if (!inCorner) {
-                b.x = bounds.maxX - b.radius;
-                b.vx = -b.vx * cushionRestitution;
-                AudioEngine.playCushionBounce(Math.abs(b.vx));
-              }
-            }
-            if (b.y - b.radius < bounds.minY) {
-              const inPocket = (b.x < bounds.minX + 30) || (b.x > bounds.maxX - 30) || (Math.abs(b.x - (this.table.x + this.table.w/2)) < 24);
-              if (!inPocket) {
-                b.y = bounds.minY + b.radius;
-                b.vy = -b.vy * cushionRestitution;
-                AudioEngine.playCushionBounce(Math.abs(b.vy));
-              }
-            }
-            if (b.y + b.radius > bounds.maxY) {
-              const inPocket = (b.x < bounds.minX + 30) || (b.x > bounds.maxX - 30) || (Math.abs(b.x - (this.table.x + this.table.w/2)) < 24);
-              if (!inPocket) {
-                b.y = bounds.maxY - b.radius;
-                b.vy = -b.vy * cushionRestitution;
-                AudioEngine.playCushionBounce(Math.abs(b.vy));
-              }
-            }
+            this.containBall(b, pockets, bounds, cushionRestitution);
           }
 
           // 2. Ball-to-Ball Collisions
@@ -1267,11 +1221,93 @@
               }
             }
           }
+
+          // 3. Overlap separation can shove a ball past a rail — re-contain.
+          for (let i = 0; i < this.balls.length; i++) {
+            const b = this.balls[i];
+            if (!b.isPocketed) this.containBall(b, pockets, bounds, cushionRestitution, true);
+          }
         }
 
         if (this.isBallsMoving && !anyMoving) {
           this.handlePostShotEvaluation();
         }
+      },
+
+      /**
+       * Keeps a ball on the table. A ball may only cross a cushion line while it is
+       * inside a pocket's "jaw" funnel; there it is drawn into the pocket. Anywhere
+       * else it is clamped to the cushion and reflected. A ball can therefore never
+       * leave the playfield except by being pocketed.
+       * @returns {boolean} true if the ball was pocketed.
+       */
+      containBall(b, pockets, bounds, cushionRestitution, silent = false) {
+        const capture = this.table.pocketRadius * 0.95;
+
+        // Nearest pocket
+        let near = null, nearDist = Infinity;
+        for (let p = 0; p < pockets.length; p++) {
+          const d = Math.hypot(b.x - pockets[p].x, b.y - pockets[p].y);
+          if (d < nearDist) { nearDist = d; near = pockets[p]; }
+        }
+
+        // Jaw radius. Corner pockets sit deep in the rail, so their mouth must
+        // reach further along both cushions (~1.6 ball widths) to accept normal
+        // angled shots; side pockets only need about one pocket width.
+        const isSidePocket = Math.abs(near.x - (this.table.x + this.table.w / 2)) < 1;
+        const funnel = isSidePocket
+          ? this.table.pocketRadius + b.radius + 2
+          : this.table.pocketRadius + b.radius * 2.5;
+
+        const pocketIt = () => {
+          b.isPocketed = true;
+          b.vx = 0;
+          b.vy = 0;
+          this.ballsPocketedThisShot.push(b);
+          AudioEngine.playPocketChime(b.num === 9);
+          return true;
+        };
+
+        if (nearDist < capture) return pocketIt();
+
+        const pastLeft = b.x - b.radius < bounds.minX;
+        const pastRight = b.x + b.radius > bounds.maxX;
+        const pastTop = b.y - b.radius < bounds.minY;
+        const pastBottom = b.y + b.radius > bounds.maxY;
+        if (!(pastLeft || pastRight || pastTop || pastBottom)) return false;
+
+        if (nearDist < funnel) {
+          // In the jaw: pull toward the pocket so it drops instead of lingering.
+          const nx = (near.x - b.x) / nearDist;
+          const ny = (near.y - b.y) / nearDist;
+          const along = b.vx * nx + b.vy * ny;
+          const pull = Math.max(0.6, -along + 0.6); // also cancels outward motion
+          b.vx = (b.vx - nx * along) * 0.6 + nx * Math.max(along, 0) + nx * pull;
+          b.vy = (b.vy - ny * along) * 0.6 + ny * Math.max(along, 0) + ny * pull;
+          // Hard backstop: past the table's outer edge inside a jaw = it went in.
+          const t = this.table;
+          if (b.x < t.x || b.x > t.x + t.w || b.y < t.y || b.y > t.y + t.h) return pocketIt();
+          return false;
+        }
+
+        // Solid cushion: clamp and reflect only the velocity heading out.
+        if (pastLeft) {
+          b.x = bounds.minX + b.radius;
+          if (b.vx < 0) { b.vx = -b.vx * cushionRestitution; if (!silent) AudioEngine.playCushionBounce(Math.abs(b.vx)); }
+        }
+        if (pastRight) {
+          b.x = bounds.maxX - b.radius;
+          if (b.vx > 0) { b.vx = -b.vx * cushionRestitution; if (!silent) AudioEngine.playCushionBounce(Math.abs(b.vx)); }
+        }
+        if (pastTop) {
+          b.y = bounds.minY + b.radius;
+          if (b.vy < 0) { b.vy = -b.vy * cushionRestitution; if (!silent) AudioEngine.playCushionBounce(Math.abs(b.vy)); }
+        }
+        if (pastBottom) {
+          b.y = bounds.maxY - b.radius;
+          if (b.vy > 0) { b.vy = -b.vy * cushionRestitution; if (!silent) AudioEngine.playCushionBounce(Math.abs(b.vy)); }
+        }
+        return false;
       },
 
       computeAimRay() {
@@ -1880,18 +1916,45 @@
         this.drawCueStick();
       },
 
-      drawCueStick() {
-        const ctx = this.ctx;
+      /** Cue stick endpoints (tip → butt) in canvas coordinates. */
+      getCueStickSegment() {
         const cb = this.cueBall;
         const oppAngle = this.aimAngle + Math.PI;
-
         const powerOffset = 18 + (this.power / 100) * 36;
         const stickLen = 220;
+        return {
+          startX: cb.x + Math.cos(oppAngle) * powerOffset,
+          startY: cb.y + Math.sin(oppAngle) * powerOffset,
+          endX: cb.x + Math.cos(oppAngle) * (powerOffset + stickLen),
+          endY: cb.y + Math.sin(oppAngle) * (powerOffset + stickLen)
+        };
+      },
 
-        const startX = cb.x + Math.cos(oppAngle) * powerOffset;
-        const startY = cb.y + Math.sin(oppAngle) * powerOffset;
-        const endX = cb.x + Math.cos(oppAngle) * (powerOffset + stickLen);
-        const endY = cb.y + Math.sin(oppAngle) * (powerOffset + stickLen);
+      /**
+       * True when a pointer at canvas point `pt` is on/near the cue ball or the cue
+       * stick. Tolerance is ~20 CSS px so it stays finger-sized on scaled-down screens.
+       */
+      isNearCueStick(pt) {
+        if (!this.cueBall || this.cueBall.isPocketed) return false;
+        const rect = this.canvas.getBoundingClientRect();
+        const scale = rect.width > 0 ? this.width / rect.width : 1;
+        const tol = Math.max(22, 20 * scale);
+        const cb = this.cueBall;
+
+        if (Math.hypot(pt.x - cb.x, pt.y - cb.y) < this.ballRadius + tol) return true;
+
+        // Distance to segment from ball centre to stick butt (covers the gap too).
+        const s = this.getCueStickSegment();
+        const ax = cb.x, ay = cb.y, bx = s.endX, by = s.endY;
+        const abx = bx - ax, aby = by - ay;
+        const lenSq = abx * abx + aby * aby;
+        const t = lenSq > 0 ? Math.max(0, Math.min(1, ((pt.x - ax) * abx + (pt.y - ay) * aby) / lenSq)) : 0;
+        return Math.hypot(pt.x - (ax + abx * t), pt.y - (ay + aby * t)) < tol;
+      },
+
+      drawCueStick() {
+        const ctx = this.ctx;
+        const { startX, startY, endX, endY } = this.getCueStickSegment();
 
         ctx.save();
         ctx.beginPath();
@@ -1970,19 +2033,45 @@
           }
 
           this.isDraggingAim = true;
-          this.aimAngle = Math.atan2(pt.y - this.cueBall.y, pt.x - this.cueBall.x);
-          this.updateAimAngleDisplay();
+          if (this.isNearCueStick(pt)) {
+            // Grab the stick: rotate it relative to where it was grabbed (no jump).
+            this.aimDragMode = 'stick';
+            this.stickGrabOffset = this.aimAngle - Math.atan2(pt.y - this.cueBall.y, pt.x - this.cueBall.x);
+          } else {
+            // Tap elsewhere: aim at that point.
+            this.aimDragMode = 'target';
+            this.aimAngle = Math.atan2(pt.y - this.cueBall.y, pt.x - this.cueBall.x);
+            this.updateAimAngleDisplay();
+          }
         };
 
         const handlePointerMove = (e) => {
-          if (!this.isDraggingAim || this.isBallsMoving || this.ballInHand) return;
           const pt = getCanvasCoords(e);
-          this.aimAngle = Math.atan2(pt.y - this.cueBall.y, pt.x - this.cueBall.x);
+          if (!this.isDraggingAim) {
+            // Hover affordance (mouse only).
+            if (!e.touches) {
+              c.style.cursor = (!this.isBallsMoving && !this.ballInHand && this.isNearCueStick(pt)) ? 'grab' : '';
+            }
+            return;
+          }
+          if (this.isBallsMoving || this.ballInHand) return;
+          const dx = pt.x - this.cueBall.x;
+          const dy = pt.y - this.cueBall.y;
+          if (this.aimDragMode === 'stick') {
+            // Too close to the ball centre the angle is unstable — hold still.
+            if (Math.hypot(dx, dy) < 8) return;
+            this.aimAngle = Math.atan2(dy, dx) + this.stickGrabOffset;
+            if (!e.touches) c.style.cursor = 'grabbing';
+          } else {
+            this.aimAngle = Math.atan2(dy, dx);
+          }
           this.updateAimAngleDisplay();
         };
 
         const handlePointerUp = () => {
           this.isDraggingAim = false;
+          this.aimDragMode = null;
+          if (c.style.cursor === 'grabbing') c.style.cursor = 'grab';
         };
 
         c.addEventListener('mousedown', handlePointerDown);
