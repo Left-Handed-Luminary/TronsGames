@@ -219,8 +219,17 @@
                 return;
             }
 
-            if (cell.neighborMines === 0) {
-                getNeighbors(x, y).forEach(n => reveal(n.x, n.y));
+            // Flood-fill open areas with an explicit stack. Recursing through
+            // reveal() overflowed the call stack on large empty regions.
+            // Neighbours of a zero cell are never mines, so no loss check here.
+            const pending = cell.neighborMines === 0 ? [cell] : [];
+            while (pending.length) {
+                const open = pending.pop();
+                for (const n of getNeighbors(open.x, open.y)) {
+                    if (n.revealed || n.flagged) continue;
+                    n.revealed = true;
+                    if (n.neighborMines === 0) pending.push(n);
+                }
             }
 
             checkWin();

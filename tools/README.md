@@ -97,3 +97,41 @@ The same `--seed` always produces the same pack, so packs are reproducible.
 `W`, `CLR`) and the `contactT` / `canRemove` math. The game inlines an identical
 copy. If you change one, change the other (and re-run `test-core.mjs`). M4 will wire
 `vector-maze.html` to consume the generated JSON directly.
+
+---
+
+# Game test suites
+
+Every suite uses Node's built-in test runner — no `package.json`, no installs.
+Browser suites use the pre-installed Playwright + Chromium.
+
+```bash
+# Everything (from the repo root). Run files one at a time: the WebGL suites
+# (Mergation, Cosmic 9-Ball) time out when several Chromiums share the CPU.
+node --test --test-concurrency=1 "tools/test-*.mjs"
+
+# One suite
+node --test tools/test-reverse2048.mjs
+```
+
+| Suite | Kind | Covers |
+|---|---|---|
+| `test-site.mjs` | Node only | Index links + screenshots exist; every inline script on every page parses (classic, module, JSON); the Vector Maze level pack is well-formed and each recorded solution replays legally. |
+| `test-core.mjs` | Node only | Vector Maze snake head-ray collision model. |
+| `test-hue-drift.mjs` | Node only | Hue Drift color math and puzzle logic. |
+| `test-simon-writes.mjs` | Node only | Simon Writes engine. |
+| `test-reverse2048.mjs` | Browser | Splits, blocked moves, score clamp, 2-tile banking, undo, hints, victory; proves both modes are winnable. |
+| `test-mega-minesweeper.mjs` | Browser | First-click safety, mine count, neighbor numbers, flood fill, flags, win/lose, solver AI deductions. |
+| `test-sleepy-puzzle.mjs` | Browser | Level curve, shuffle never pre-solved, tap/swipe swaps, "Fix one tile", reshuffle, win overlay, saved level. |
+| `test-cosmic-9ball.mjs` | Browser | Cosmic 9-Ball table physics. |
+| `test-mergation.mjs` | Browser | Mergation block physics (needs the three.js CDN). |
+
+`browser-harness.mjs` is the shared loader for the new browser suites: it opens
+the real page, **aborts all network requests** (so runs are offline; Tailwind
+styling is absent, so assert on classes rather than visibility) and replaces
+`Math.random` with a **seeded** generator so mine layouts and shuffles are
+identical on every run. Tests then call the game's own top-level functions via
+`page.evaluate` — nothing is re-implemented.
+
+Not yet covered: the Wordle clone loads React/Babel from unpkg at runtime, so it
+needs network access to test.
