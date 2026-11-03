@@ -312,6 +312,7 @@ function softReshuffle(){
 function checkWin(){
   if(!isSolved()) return;
   setTimeout(()=>{
+    if(!isSolved()) return; // board changed (e.g. reshuffled) during the delay
     document.getElementById('overlayTitle').textContent='Picture settled.';
     document.getElementById('overlayText').textContent = size<4
       ? 'The next level adds a little more repetition.'
