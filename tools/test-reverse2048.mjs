@@ -204,6 +204,94 @@ test('showHint reports a dead board instead of inventing a move', async () => {
   assert.match((await snapshot()).message, /No valid splits remain/);
 });
 
+test('regression: following the Hint button wins Pure mode from the opening', async () => {
+  // The old one-move heuristic filled the board and dead-ended after 24 hints.
+  const r = await page.evaluate(() => {
+    resetGame('pure');
+    for (let presses = 0; presses < 5000; presses++) {
+      showHint();
+      if (!hint) break;
+      performSplit(hint.tileId, hint.direction);
+    }
+    return { won: checkVictory(), moves: state.moves, score: state.score };
+  });
+  assert.deepEqual(r, { won: true, moves: 1023, score: 0 });
+});
+
+test('regression: Hint keeps Max mode on a winning line well past the old dead end', async () => {
+  // The old heuristic dead-ended Max mode after 17 hints. A full hinted Max game
+  // is 4,186 presses, so check the first 300 here; the property test below shows
+  // a "winning" hint really does lead to a win.
+  const r = await page.evaluate(() => {
+    resetGame('max');
+    for (let presses = 0; presses < 300; presses++) {
+      showHint();
+      if (!hint) return { deadEndAt: presses };
+      performSplit(hint.tileId, hint.direction);
+    }
+    return { deadEndAt: null, stillWinning: findHintMove().winning };
+  });
+  assert.deepEqual(r, { deadEndAt: null, stillWinning: true });
+});
+
+test('the hint simulator agrees with the real game: a "winning" hint really wins', async () => {
+  // From scrambled positions: when the hint claims a winning line, play its move
+  // and then the smallest-first continuation it simulated, using the real
+  // performSplit. Losing would mean the simulation drifted from the game
+  // (ids, score clamp, banking).
+  const r = await page.evaluate(() => {
+    const results = { claimedWin: 0, claimedLoss: 0, broken: [] };
+    for (let trial = 0; trial < 20; trial++) {
+      resetGame(trial % 2 ? 'max' : 'pure');
+      const randomSplits = 2 + (trial % 6);
+      for (let i = 0; i < randomSplits; i++) {
+        const legal = [];
+        for (const t of state.tiles) for (const d of getValidDirections(t)) legal.push([t.id, d]);
+        if (!legal.length) break;
+        const [id, d] = legal[Math.floor(Math.random() * legal.length)];
+        performSplit(id, d);
+      }
+      const best = findHintMove();
+      if (!best) continue;
+      if (!best.winning) { results.claimedLoss++; continue; }
+      results.claimedWin++;
+      performSplit(best.tileId, best.direction);
+      for (let n = 0; n < 20000; n++) {
+        const tile = state.tiles
+          .filter((t) => getValidDirections(t).length)
+          .sort((a, b) => a.value - b.value || a.id - b.id)[0];
+        if (!tile) break;
+        performSplit(tile.id, getValidDirections(tile)[0]);
+      }
+      if (!checkVictory()) results.broken.push(trial);
+    }
+    return results;
+  });
+  assert.deepEqual(r.broken, [], `hint claimed a win but the line lost in trials ${r.broken}`);
+  assert.ok(r.claimedWin >= 10, `expected most lightly scrambled boards to be rescuable, got ${r.claimedWin}/20`);
+  assert.deepEqual(game.errors, []);
+});
+
+test('the hint simulation never changes the live board', async () => {
+  await page.evaluate(() => switchMode('max'));
+  const before = await snapshot();
+  await page.evaluate(() => findHintMove());
+  const after = await snapshot();
+  assert.deepEqual(after.tiles, before.tiles);
+  assert.equal(after.score, before.score);
+  assert.equal(after.nextTileId, before.nextTileId);
+});
+
+test('on a board with no winning line the hint still helps but says so', async () => {
+  // Score can never reach exactly zero here: splitting 4 costs 4, leaving 96.
+  await setBoard([{ x: 2, y: 2, value: 4 }], { score: 100 });
+  const best = await page.evaluate(() => findHintMove());
+  assert.equal(best.winning, false);
+  await page.evaluate(() => showHint());
+  assert.equal(await page.evaluate(() => selectedTileId), 1, 'still points at a legal move');
+  assert.match((await snapshot()).message, /No winning line found.*Undo/);
+});
+
 // ------------------------------------------------------------------- victory
 
 test('the final 4 -> 2 + 2 split at score zero wins and opens the modal', async () => {
