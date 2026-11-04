@@ -198,6 +198,16 @@ test('the progress dots fill one per level and wrap every six levels', async () 
   assert.deepEqual(dots, [1, 3, 6, 1]);
 });
 
+test('reshuffling right after solving does not show the win overlay', async () => {
+  // Regression: the overlay is opened from a 180 ms timer. If the board is
+  // scrambled again inside that window, the timer must not announce a win.
+  await setOrder([1, 0, 2, 3]);
+  await page.evaluate(() => { tapTile(0); tapTile(1); softReshuffle(); });
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 300)));
+  assert.equal((await read()).solved, false);
+  assert.equal(await page.evaluate(() => overlay.classList.contains('show')), false);
+});
+
 test('a saved level is restored on load', async () => {
   const other = await openGame('sleepy-puzzle.html', { readyWhen: READY, localStorage: { sleepyShuffleLevel: '9' } });
   try {

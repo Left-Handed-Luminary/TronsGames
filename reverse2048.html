@@ -554,45 +554,97 @@
       render();
     }
 
-    function scoreMove(move) {
-      const simulated = {
-        tiles: cloneTiles(state.tiles),
-        bankedTwos: state.bankedTwos
-      };
-      const tile = simulated.tiles.find((entry) => entry.id === move.tileId);
+    // --- Hint solver -------------------------------------------------------
+    // The hint looks ahead instead of scoring single moves. Splitting the
+    // smallest splittable tile first keeps the board sparse (2-tiles are banked
+    // as soon as they appear), and it wins both modes from the opening. For
+    // each legal move, in smallest-first order, we play the rest of the game
+    // out with that policy on a copy of the board and recommend the first move
+    // whose playout wins. These helpers never touch `state` or the DOM, and
+    // they mirror performSplit + bankExtraTwos exactly (ids, score, banking).
+
+    /** Copy the live board into a simulation: tiles, occupancy grid, score, ids. */
+    function createSimulation() {
+      const tiles = cloneTiles(state.tiles);
+      const grid = new Array(BOARD_SIZE * BOARD_SIZE).fill(null);
+      for (const tile of tiles) grid[tile.y * BOARD_SIZE + tile.x] = tile;
+      return { tiles, grid, score: state.score, nextId: nextTileId };
+    }
+
+    /** Directions a simulated tile can split into, in DIRS order. */
+    function simulatedDirections(sim, tile) {
+      if (tile.value <= 2) return [];
+      return Object.keys(DIRS).filter((key) => {
+        const nx = tile.x + DIRS[key].dx;
+        const ny = tile.y + DIRS[key].dy;
+        return inBounds(nx, ny) && !sim.grid[ny * BOARD_SIZE + nx];
+      });
+    }
+
+    /** Every legal move, smallest tile first (ties: oldest tile, then DIRS order). */
+    function simulatedMoves(sim) {
+      const moves = [];
+      const tiles = sim.tiles.filter((tile) => tile.value > 2)
+        .sort((a, b) => a.value - b.value || a.id - b.id);
+      for (const tile of tiles) {
+        for (const direction of simulatedDirections(sim, tile)) moves.push({ tileId: tile.id, direction });
+      }
+      return moves;
+    }
+
+    /** Apply a split to a simulation exactly as performSplit does to `state`. */
+    function simulateSplit(sim, move) {
+      const tile = sim.tiles.find((entry) => entry.id === move.tileId);
       const dir = DIRS[move.direction];
       const half = tile.value / 2;
       tile.value = half;
-      simulated.tiles.push({ id: Number.MAX_SAFE_INTEGER, x: tile.x + dir.dx, y: tile.y + dir.dy, value: half });
-
-      let banked = 0;
-      const twos = simulated.tiles.filter((entry) => entry.value === 2).sort((a, b) => a.id - b.id);
+      const twin = { id: ++sim.nextId, x: tile.x + dir.dx, y: tile.y + dir.dy, value: half };
+      sim.tiles.push(twin);
+      sim.grid[twin.y * BOARD_SIZE + twin.x] = twin;
+      sim.score = Math.max(0, sim.score - half * 2);
+      if (half !== 2) return;
+      const twos = sim.tiles.filter((entry) => entry.value === 2).sort((a, b) => a.id - b.id);
       while (twos.length > 2) {
         const retired = twos.shift();
-        simulated.tiles = simulated.tiles.filter((entry) => entry !== retired);
-        banked += 1;
+        sim.tiles.splice(sim.tiles.indexOf(retired), 1);
+        sim.grid[retired.y * BOARD_SIZE + retired.x] = null;
       }
+    }
 
-      const futureMoves = simulated.tiles.reduce((count, entry) => count + (entry.value > 2
-        ? Object.values(DIRS).filter((dirEntry) => {
-            const nx = entry.x + dirEntry.dx;
-            const ny = entry.y + dirEntry.dy;
-            return inBounds(nx, ny) && !simulated.tiles.some((other) => other !== entry && other.x === nx && other.y === ny);
-          }).length
-        : 0), 0);
+    /** Same win rule as checkVictory(). */
+    function simulationWon(sim) {
+      return sim.score === 0 && sim.tiles.length === 2 && sim.tiles.every((tile) => tile.value === 2);
+    }
 
-      return futureMoves * 12 + move.value / 8 - simulated.tiles.length * 3 + banked * 4;
+    /** Play smallest-first until no move is left; true if that ends in a win. */
+    function playoutWins(sim) {
+      for (;;) {
+        const next = simulatedMoves(sim)[0];
+        if (!next) return simulationWon(sim);
+        simulateSplit(sim, next);
+      }
+    }
+
+    /**
+     * Best move for the live board: { tileId, direction, winning } or null when
+     * no split is possible. `winning` is false when no playout from any legal
+     * move wins; the smallest-first move is still returned so the player can act.
+     */
+    function findHintMove() {
+      const moves = simulatedMoves(createSimulation());
+      if (!moves.length) return null;
+      for (const move of moves) {
+        const sim = createSimulation();
+        simulateSplit(sim, move);
+        if (playoutWins(sim)) return { ...move, winning: true };
+      }
+      return { ...moves[0], winning: false };
     }
 
     function showHint() {
-      const moves = [];
-      for (const tile of state.tiles) {
-        for (const direction of getValidDirections(tile)) {
-          moves.push({ tileId: tile.id, direction, value: tile.value });
-        }
-      }
+      const best = findHintMove();
 
-      if (!moves.length) {
+      if (!best) {
         hint = null;
         selectedTileId = null;
         setMessage('No valid splits remain. Use Undo Reverse or reset the board.', 'rose');
@@ -600,11 +652,14 @@
         return;
       }
 
-      moves.sort((a, b) => scoreMove(b) - scoreMove(a));
-      hint = { tileId: moves[0].tileId, direction: moves[0].direction };
+      hint = { tileId: best.tileId, direction: best.direction };
       selectedTileId = hint.tileId;
       const tile = getTileById(hint.tileId);
-      setMessage(`Hint: split ${tile.value} toward ${hint.direction}.`, 'amber');
+      if (best.winning) {
+        setMessage(`Hint: split ${tile.value} toward ${hint.direction}.`, 'amber');
+      } else {
+        setMessage(`Hint: split ${tile.value} toward ${hint.direction}. No winning line found from here; try Undo Reverse.`, 'rose');
+      }
       render();
     }
 
