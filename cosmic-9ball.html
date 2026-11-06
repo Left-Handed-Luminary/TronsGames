@@ -879,6 +879,9 @@
         this.isFoul = false;
         this.ballInHand = false;
         this.firstBallHit = null;
+        // Every fresh rack is a new game, so the shot counter starts over.
+        this.shotCount = 0;
+        this.updateShotCounter();
 
         const tw = this.table.w;
         const th = this.table.h;
@@ -946,6 +949,12 @@
         this.updateLowestBall();
         this.renderPocketedTray();
         this.setMessage("✨ Cosmic Break Shot! Aim at the #1 Gold Star ball to begin.");
+      },
+
+      /** Syncs the on-screen "Shots: N" label with shotCount. */
+      updateShotCounter() {
+        const streakEl = document.getElementById('streak-counter');
+        if (streakEl) streakEl.textContent = `Shots: ${this.shotCount}`;
       },
 
       updateLowestBall() {
@@ -1034,9 +1043,7 @@
         this.isFoul = false;
         this.foulReason = "";
         this.shotCount++;
-
-        const streakEl = document.getElementById('streak-counter');
-        if (streakEl) streakEl.textContent = `Shots: ${this.shotCount}`;
+        this.updateShotCounter();
 
         AudioEngine.playCueHit(powerFactor);
         this.setMessage("💫 Shot released! Watching cosmic trajectory...");

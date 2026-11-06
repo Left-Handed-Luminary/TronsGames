@@ -240,3 +240,51 @@ test('touch drag on the stick moves the stick', async () => {
   // Stick above the ball → shot aims straight down (+π/2).
   assert.ok(angleDiff(a.afterMove, Math.PI / 2) < 0.02, `got ${a.afterMove}`);
 });
+
+/** Fires a few real shots via Game.shoot() so shotCount > 0. */
+async function takeShots(n) {
+  await page.evaluate((n) => {
+    Game.rackBalls();
+    for (let i = 0; i < n; i++) {
+      Game.isBallsMoving = false;
+      Game.isGameWon = false;
+      Game.ballInHand = false;
+      Game.shoot();
+      for (const b of Game.balls) { b.vx = 0; b.vy = 0; }
+      Game.isBallsMoving = false;
+    }
+  }, n);
+}
+
+const shotLabel = () => page.textContent('#streak-counter');
+
+test('shot counter resets to 0 when Play Again starts a new game after a win', async () => {
+  await takeShots(3);
+  assert.equal(await page.evaluate(() => Game.shotCount), 3);
+  assert.equal(await shotLabel(), 'Shots: 3');
+
+  // Finish the game and show the win modal, as handlePostShotEvaluation does.
+  await page.evaluate(() => {
+    Game.isGameWon = true;
+    document.getElementById('modal-win').classList.remove('hidden');
+  });
+  await page.click('#btn-play-again');
+
+  assert.equal(await page.evaluate(() => Game.shotCount), 0);
+  assert.equal(await shotLabel(), 'Shots: 0');
+  assert.equal(await page.evaluate(() => Game.isGameWon), false);
+
+  // The first shot of the new game counts as 1, not 4.
+  await page.evaluate(() => { Game.isBallsMoving = false; Game.shoot(); });
+  assert.equal(await page.evaluate(() => Game.shotCount), 1);
+  assert.equal(await shotLabel(), 'Shots: 1');
+});
+
+test('shot counter resets to 0 when Re-rack starts a new game', async () => {
+  await takeShots(2);
+  assert.equal(await shotLabel(), 'Shots: 2');
+  await page.evaluate(() => { Game.isBallsMoving = false; });
+  await page.click('#btn-rerack');
+  assert.equal(await page.evaluate(() => Game.shotCount), 0);
+  assert.equal(await shotLabel(), 'Shots: 0');
+});
