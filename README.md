@@ -46,6 +46,7 @@ The repository includes several one-page games and experiments, including:
 | `cosmic-9ball.html` | Relaxing cosmic nine-ball pool with an aim guide, adjustable shot power, optional synthesized audio, and animated sheep |
 | `crystal-madness.html` | Isometric crystal-collecting marble adventure with three courses and touchscreen controls |
 | `cootie-catcher.html` | Interactive fortune-teller style game |
+| `crown-lattice.html` | Region logic puzzle: one crown per row, column, and color region, with no two touching. Ten generated puzzles (5x5 to 10x10), each verified to have exactly one solution (tests: `node --test tools/test-crown-lattice.mjs`) |
 | `cup_n_caps.html` | Color-sorting puzzle where players fill each cup with matching colors |
 | `davidic-lyre.html` | Music-inspired interactive experiment |
 | `defender-clone.html` | Defender-style arcade prototype |
