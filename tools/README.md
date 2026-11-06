@@ -120,6 +120,7 @@ node --test tools/test-reverse2048.mjs
 | `test-core.mjs` | Node only | Vector Maze snake head-ray collision model. |
 | `test-hue-drift.mjs` | Node only | Hue Drift color math and puzzle logic. |
 | `test-simon-writes.mjs` | Node only | Simon Writes engine. |
+| `test-crown-lattice.mjs` | Node only | Crown Lattice rules engine; every shipped puzzle has one legal, unique solution and an honest difficulty label; hints never conflict and solve each puzzle in n steps. Regenerate the pack with `node tools/generate-crown-lattice.mjs [--seed N]`. |
 | `test-reverse2048.mjs` | Browser | Splits, blocked moves, score clamp, 2-tile banking, undo, hints, victory; proves both modes are winnable. |
 | `test-mega-minesweeper.mjs` | Browser | First-click safety, mine count, neighbor numbers, flood fill, flags, win/lose, solver AI deductions. |
 | `test-sleepy-puzzle.mjs` | Browser | Level curve, shuffle never pre-solved, tap/swipe swaps, "Fix one tile", reshuffle, win overlay, saved level. |

@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070b16">
+<title>Crown Lattice</title>
+<style>
+  /* Tokens: near-black navy, charcoal panels, muted jewel regions, bright restrained accents. */
+  :root {
+    --bg: #070b16; --bg-2: #0d1426; --panel: #151a24; --panel-2: #1c2230;
+    --line: rgba(255,255,255,.10); --ink: #e6ebf5; --ink-soft: #a3adc2;
+    --gold: #ffd166; --gold-deep: #c9962c; --ice: #cfe3ff;
+    --focus: #5eead4; --danger: #ff5c7a; --success: #4ade80;
+    --edge: #05070d;
+    /* Region jewels (muted so the bright accents read on top). */
+    --r0: #5d4291; --r1: #2c5597; --r2: #23715a; --r3: #8b3049; --r4: #8d6b22;
+    --r5: #1d6d79; --r6: #87497a; --r7: #556f2a; --r8: #8c4f2c; --r9: #3e4a7a;
+    --board: min(92vw, 58vh, 540px);
+    color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh; min-height: 100dvh;
+    background:
+      radial-gradient(90% 60% at 15% 0%, rgba(93,66,145,.22), transparent 60%),
+      radial-gradient(70% 50% at 90% 10%, rgba(29,109,121,.18), transparent 60%),
+      linear-gradient(var(--bg), var(--bg-2));
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  .app {
+    max-width: 1040px; margin: 0 auto; padding: 14px 14px 28px;
+    display: grid; gap: 14px; grid-template-columns: 1fr; justify-items: center;
+  }
+  @media (min-width: 900px) {
+    .app { grid-template-columns: auto 330px; align-items: start; padding-top: 28px; }
+    .app > header { grid-column: 1 / -1; }
+    :root { --board: min(56vw, 76vh, 600px); }
+  }
+
+  header { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 34px; height: 34px; filter: drop-shadow(0 0 8px rgba(255,209,102,.35)); }
+  h1 {
+    margin: 0; font-size: clamp(1.4rem, 4.5vw, 2rem); letter-spacing: .08em; text-transform: uppercase; font-weight: 800;
+    background: linear-gradient(90deg, #ffe7a3, var(--gold) 45%, #f59fb5); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hud { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line); font-size: .9rem; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .chip b { color: var(--ink); font-weight: 700; }
+  .chip.diff b[data-level="Easy"] { color: #86efac; }
+  .chip.diff b[data-level="Medium"] { color: #7dd3fc; }
+  .chip.diff b[data-level="Hard"] { color: #fda4af; }
+  .chip.diff b[data-level="Expert"] { color: #f0abfc; }
+
+  /* ---------- Board ---------- */
+  .stage { display: grid; gap: 10px; justify-items: center; }
+  .frame {
+    padding: 10px; border-radius: 18px; background: linear-gradient(160deg, #1d2333, #10141e);
+    box-shadow: 0 0 0 1px var(--line), 0 24px 60px rgba(0,0,0,.55), 0 0 40px rgba(93,66,145,.15);
+    transition: box-shadow .4s ease;
+  }
+  .frame.solved { box-shadow: 0 0 0 2px var(--success), 0 24px 60px rgba(0,0,0,.55), 0 0 46px rgba(74,222,128,.35); }
+  #board {
+    width: var(--board); height: var(--board);
+    display: grid; grid-template-columns: repeat(var(--n, 8), 1fr); grid-template-rows: repeat(var(--n, 8), 1fr);
+    border: 3px solid var(--edge); border-radius: 6px; overflow: hidden; background: var(--edge);
+    /* The board owns its gestures so drags and quick taps never scroll or zoom the page. */
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #board:focus-within { outline: none; }
+  .row { display: contents; }
+  .cell {
+    position: relative; display: grid; place-items: center; min-width: 0; min-height: 0;
+    background: var(--rc); cursor: pointer; outline: none;
+    border: 1px solid rgba(0,0,0,.35);
+    transition: filter .15s ease;
+  }
+  .cell.et { border-top: 3px solid var(--edge); }
+  .cell.er { border-right: 3px solid var(--edge); }
+  .cell.eb { border-bottom: 3px solid var(--edge); }
+  .cell.el { border-left: 3px solid var(--edge); }
+  /* Soft inner sheen keeps the jewel tones from looking flat. */
+  .cell::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255,255,255,.10), transparent 45%, rgba(0,0,0,.14));
+  }
+  @media (hover: hover) { .cell:hover { filter: brightness(1.18); } }
+  .cell:focus-visible::after {
+    content: ''; position: absolute; inset: 2px; border-radius: 4px; pointer-events: none;
+    box-shadow: 0 0 0 3px var(--focus), 0 0 12px rgba(94,234,212,.6); z-index: 3;
+  }
+  /* Conflict feedback: whole offending line/region gets a red wash; the queens themselves turn red. */
+  .cell.conflict-zone::before {
+    background: repeating-linear-gradient(135deg, rgba(255,92,122,.30) 0 5px, rgba(255,92,122,.10) 5px 10px);
+  }
+  .glyph { position: relative; z-index: 2; width: 74%; height: 74%; display: none; }
+  .cell.x .glyph-x { display: block; }
+  .cell.q .glyph-q { display: block; animation: drop .18s ease-out; }
+  .glyph-x line { stroke: var(--ice); stroke-width: 2.6; stroke-linecap: round; opacity: .7; }
+  .glyph-x { width: 34%; height: 34%; }
+  .glyph-q { filter: drop-shadow(0 0 6px rgba(255,209,102,.55)) drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+  .cell.bad .glyph-q { --crown-fill: var(--danger); --crown-stroke: #4a0716; --crown-gem: #ffe1e7; }
+  .cell.bad .glyph-q { filter: drop-shadow(0 0 8px rgba(255,92,122,.8)); animation: shake .3s ease; }
+  .cell.hinted::after {
+    content: ''; position: absolute; inset: 3px; border-radius: 6px; pointer-events: none; z-index: 3;
+    box-shadow: 0 0 0 3px var(--gold), 0 0 18px rgba(255,209,102,.8);
+    animation: pulse 1.1s ease-in-out 3;
+  }
+  .frame.solved .cell.q .glyph-q { --crown-fill: #b9f7cf; --crown-stroke: #0b3a1d; }
+  .frame.solved .cell.q .glyph-q { filter: drop-shadow(0 0 10px rgba(74,222,128,.8)); }
+  @keyframes drop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes shake { 25% { transform: translateX(-2px); } 75% { transform: translateX(2px); } }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  #status {
+    width: var(--board); min-height: 2.8em; margin: 0; padding: 8px 12px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink); font-size: .95rem; line-height: 1.4;
+  }
+  #status[data-tone="bad"] { border-color: rgba(255,92,122,.6); color: #ffd1da; }
+  #status[data-tone="hint"] { border-color: rgba(255,209,102,.6); color: #ffeab3; }
+  #status[data-tone="win"] { border-color: rgba(74,222,128,.7); color: #c9f9da; }
+
+  /* ---------- Side panel ---------- */
+  aside { width: 100%; max-width: 560px; display: grid; gap: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  .panel h2 { margin: 0 0 8px; font-size: .75rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; }
+  .btn-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button {
+    font: inherit; font-size: .95rem; font-weight: 600; color: var(--ink);
+    background: var(--panel-2); border: 1px solid rgba(255,255,255,.14); border-radius: 10px;
+    min-height: 46px; padding: 8px 10px; cursor: pointer; touch-action: manipulation;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    transition: background .15s ease, border-color .15s ease, transform .08s ease;
+  }
+  button:hover:not(:disabled) { background: #252c3d; border-color: rgba(255,255,255,.24); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: linear-gradient(180deg, #ffdb80, #e9b545); color: #2a1c00; border-color: #ffe7a3; }
+  button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #ffe39a, #f0c25e); }
+  .mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,.14); }
+  .mode button { border: 0; border-radius: 0; background: var(--panel-2); border-right: 1px solid rgba(255,255,255,.1); }
+  .mode button:last-child { border-right: 0; }
+  .mode button[aria-pressed="true"] { background: #2b3550; color: #fff; box-shadow: inset 0 -3px 0 var(--focus); }
+  .mode button:focus-visible { outline-offset: -3px; }
+  .mode svg, .btn-row svg { width: 18px; height: 18px; }
+  .nav { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; text-align: center; }
+  .nav .which { font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: .9rem; }
+  .nav .which strong { display: block; color: var(--ink); font-size: 1rem; }
+  .small { margin: 8px 0 0; color: var(--ink-soft); font-size: .85rem; line-height: 1.45; }
+  details summary { cursor: pointer; font-weight: 700; color: var(--ink); min-height: 32px; display: flex; align-items: center; }
+  details summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+  details ul { margin: 6px 0 0; padding-left: 1.1rem; color: var(--ink-soft); font-size: .9rem; line-height: 1.55; }
+  kbd { font: inherit; font-size: .8rem; padding: 1px 6px; border-radius: 5px; background: #0b1020; border: 1px solid rgba(255,255,255,.2); color: var(--ink); }
+  a.home { color: var(--focus); font-size: .9rem; text-decoration: none; }
+  a.home:hover { text-decoration: underline; }
+  a.home:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+  /* ---------- Win overlay ---------- */
+  #win { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgba(3,6,14,.66); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+  #win[hidden] { display: none; }
+  .win-card {
+    width: min(420px, 100%); text-align: center; padding: 26px 22px 22px; border-radius: 18px;
+    background: linear-gradient(170deg, #1b2232, #121722); border: 1px solid rgba(74,222,128,.55);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 50px rgba(74,222,128,.18);
+  }
+  .win-card svg { width: 64px; height: 64px; }
+  .win-card h2 { margin: 6px 0 4px; font-size: 1.6rem; letter-spacing: .06em; color: #c9f9da; }
+  .win-card p { margin: 0 0 18px; color: var(--ink-soft); }
+  .win-card .btn-row { grid-template-columns: 1fr 1fr; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-crown" viewBox="0 0 24 24">
+      <g style="fill:var(--crown-fill,#ffd166);stroke:var(--crown-stroke,#4a3207);stroke-width:.8;stroke-linejoin:round">
+        <path d="M3.2 17.5 2.4 7.6l5.1 4.3L12 4.2l4.5 7.7 5.1-4.3-.8 9.9z"/>
+        <rect x="3.4" y="18.4" width="17.2" height="2.6" rx="1"/>
+      </g>
+      <g style="fill:var(--crown-gem,#fff6d6)">
+        <circle cx="12" cy="14.2" r="1.35"/><circle cx="7.4" cy="15" r=".9"/><circle cx="16.6" cy="15" r=".9"/>
+      </g>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-crown"/></svg>
+      <h1>Crown Lattice</h1>
+    </div>
+    <div class="hud">
+      <span class="chip"><span id="puzzle-name">Puzzle</span></span>
+      <span class="chip diff">Level <b id="difficulty" data-level="Easy">Easy</b></span>
+      <span class="chip">Crowns <b id="queen-count">0/0</b></span>
+      <span class="chip" role="timer" aria-label="Elapsed time"><b id="timer">0:00</b></span>
+    </div>
+  </header>
+
+  <section class="stage" aria-label="Puzzle board">
+    <div class="frame" id="frame">
+      <div id="board" role="grid" aria-label="Crown Lattice board" aria-describedby="rules-short"></div>
+    </div>
+    <p id="status" role="status" aria-live="polite">Place one crown in every row, column, and color region.</p>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2 id="mode-label">Tap places</h2>
+      <div class="mode" role="group" aria-labelledby="mode-label">
+        <button type="button" data-mode="cycle" aria-pressed="true" title="Tap cycles: empty, X, crown">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18 3v4h-4M6 21v-4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Cycle</button>
+        <button type="button" data-mode="mark" aria-pressed="false" title="Tap toggles an X">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>Mark X</button>
+        <button type="button" data-mode="queen" aria-pressed="false" title="Tap toggles a crown">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-crown"/></svg>Crown</button>
+      </div>
+      <p class="small" id="rules-short">Cycle: tap once for X, twice for a crown, three times to clear. Drag across empty cells to mark several X at once.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Actions</h2>
+      <div class="btn-row">
+        <button type="button" id="undo" aria-keyshortcuts="Control+Z U">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 0 1 0 12h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Undo</button>
+        <button type="button" id="hint" class="primary" aria-keyshortcuts="H">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Hint</button>
+        <button type="button" id="reset">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15a8 8 0 1 0 1.5-8.5L4 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Reset</button>
+      </div>
+      <p class="small">Hints used: <b id="hint-count">0</b></p>
+    </div>
+
+    <div class="panel">
+      <h2>Puzzle</h2>
+      <div class="nav">
+        <button type="button" id="prev" aria-label="Previous puzzle">&#8249; Prev</button>
+        <div class="which"><strong id="puzzle-index">1 / 1</strong><span id="best">No best time yet</span></div>
+        <button type="button" id="next" aria-label="Next puzzle">Next &#8250;</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <details>
+        <summary>How to play</summary>
+        <ul>
+          <li>Place exactly one crown in each <b>row</b>, each <b>column</b>, and each <b>color region</b>.</li>
+          <li>Crowns may not <b>touch</b>, not even corner to corner.</li>
+          <li>Use X marks to rule cells out. They never count against you.</li>
+          <li>Rule breaks glow red right away.</li>
+          <li>Keyboard: arrows move, <kbd>Space</kbd>/<kbd>Enter</kbd> tap, <kbd>X</kbd> mark, <kbd>Q</kbd> crown, <kbd>Del</kbd> clear, <kbd>U</kbd> or <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo, <kbd>H</kbd> hint.</li>
+          <li>Mouse: right-click toggles an X.</li>
+        </ul>
+      </details>
+      <p class="small"><a class="home" href="index.html">&larr; Back to Trons Games</a></p>
+    </div>
+  </aside>
+</div>
+
+<div id="win" hidden role="dialog" aria-modal="true" aria-labelledby="win-title" aria-describedby="win-detail">
+  <div class="win-card">
+    <svg viewBox="0 0 24 24" aria-hidden="true" style="--crown-fill:#b9f7cf;--crown-stroke:#0b3a1d"><use href="#i-crown"/></svg>
+    <h2 id="win-title">Lattice complete</h2>
+    <p id="win-detail"></p>
+    <div class="btn-row">
+      <button type="button" id="win-stay">View board</button>
+      <button type="button" id="win-next" class="primary">Next puzzle</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * Crown Lattice — pure rules engine (no DOM access).
+ *
+ * A puzzle is { size, regions: ["AAB…", …], solution: [col per row] }.
+ * A board is a flat array of length n*n holding EMPTY, MARK (X) or QUEEN.
+ *
+ * Works in the browser (self.CrownLogic) and in Node (module.exports) so the
+ * code the tests and the puzzle generator exercise is the code that ships.
+ */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module && module.exports) module.exports = api;
+  if (root) root.CrownLogic = api;
+})(typeof self !== 'undefined' ? self : (typeof globalThis !== 'undefined' ? globalThis : null), function () {
+  'use strict';
+
+  const EMPTY = 0, MARK = 1, QUEEN = 2;
+
+  /** Turn raw puzzle data into an indexed form. Region ids follow reading order. */
+  function parsePuzzle(raw) {
+    const n = raw.size;
+    const letters = [];
+    const regionOf = [];
+    for (const row of raw.regions) {
+      for (const ch of row) {
+        let k = letters.indexOf(ch);
+        if (k < 0) { letters.push(ch); k = letters.length - 1; }
+        regionOf.push(k);
+      }
+    }
+    return {
+      id: raw.id, name: raw.name, difficulty: raw.difficulty, n,
+      regionOf, regionCount: letters.length,
+      solution: Array.isArray(raw.solution) ? raw.solution.slice() : [],
+    };
+  }
+
+  const rowOf = (n, i) => Math.floor(i / n);
+  const colOf = (n, i) => i % n;
+
+  /** True when two different cells are neighbors (including diagonally). */
+  function touching(n, a, b) {
+    return a !== b && Math.abs(rowOf(n, a) - rowOf(n, b)) <= 1 && Math.abs(colOf(n, a) - colOf(n, b)) <= 1;
+  }
+
+  /** Every row, column and region as { kind, index, cells }. */
+  function units(p) {
+    const { n, regionOf } = p;
+    const out = [];
+    for (let g = 0; g < p.regionCount; g++) out.push({ kind: 'region', index: g, cells: [] });
+    for (let i = 0; i < n * n; i++) out[regionOf[i]].cells.push(i);
+    for (let r = 0; r < n; r++) out.push({ kind: 'row', index: r, cells: Array.from({ length: n }, (_, c) => r * n + c) });
+    for (let c = 0; c < n; c++) out.push({ kind: 'col', index: c, cells: Array.from({ length: n }, (_, r) => r * n + c) });
+    return out;
+  }
+
+  /** Would a crown on `q` rule out cell `i`? (same row, column, region, or touching) */
+  function covers(p, q, i) {
+    const { n, regionOf } = p;
+    return q !== i && (rowOf(n, q) === rowOf(n, i) || colOf(n, q) === colOf(n, i) ||
+      regionOf[q] === regionOf[i] || touching(n, q, i));
+  }
+
+  /** Find up to `limit` complete solutions by row-by-row backtracking. */
+  function solveAll(p, limit = 2) {
+    const { n, regionOf } = p;
+    const out = [];
+    const cols = new Array(n).fill(-1);
+    let usedCol = 0, usedReg = 0;
+    (function place(r) {
+      if (out.length >= limit) return;
+      if (r === n) { out.push(cols.slice()); return; }
+      for (let c = 0; c < n; c++) {
+        if ((usedCol >> c) & 1) continue;
+        if (r > 0 && Math.abs(cols[r - 1] - c) <= 1) continue;
+        const g = regionOf[r * n + c];
+        if ((usedReg >> g) & 1) continue;
+        cols[r] = c; usedCol |= 1 << c; usedReg |= 1 << g;
+        place(r + 1);
+        usedCol &= ~(1 << c); usedReg &= ~(1 << g);
+        if (out.length >= limit) return;
+      }
+    })(0);
+    return out;
+  }
+
+  /** Check a candidate solution against all four rules. Returns a list of problems. */
+  function checkSolution(p, solution) {
+    const { n, regionOf } = p;
+    const errs = [];
+    if (!Array.isArray(solution) || solution.length !== n) return [`solution must list ${n} columns, one per row`];
+    if (solution.some((c) => !Number.isInteger(c) || c < 0 || c >= n)) return ['solution has a column out of range'];
+    if (new Set(solution).size !== n) errs.push('two crowns share a column');
+    const regs = solution.map((c, r) => regionOf[r * n + c]);
+    if (new Set(regs).size !== n) errs.push('two crowns share a region');
+    for (let r = 1; r < n; r++) {
+      if (Math.abs(solution[r] - solution[r - 1]) <= 1) errs.push(`crowns in rows ${r} and ${r + 1} touch`);
+    }
+    return errs;
+  }
+
+  /** Validate raw puzzle data: shape, contiguous regions, legal and unique solution. */
+  function validatePuzzle(raw) {
+    const errs = [];
+    const n = raw && raw.size;
+    if (!Number.isInteger(n) || n < 4 || n > 12) return ['size must be an integer from 4 to 12'];
+    if (!Array.isArray(raw.regions) || raw.regions.length !== n || raw.regions.some((r) => typeof r !== 'string' || r.length !== n)) {
+      return [`regions must be ${n} strings of length ${n}`];
+    }
+    const p = parsePuzzle(raw);
+    if (p.regionCount !== n) errs.push(`expected ${n} regions, found ${p.regionCount}`);
+    for (const u of units(p)) {
+      if (u.kind !== 'region') continue;
+      const seen = new Set([u.cells[0]]);
+      const stack = [u.cells[0]];
+      while (stack.length) {
+        const i = stack.pop();
+        const r = rowOf(n, i), c = colOf(n, i);
+        for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const rr = r + dr, cc = c + dc;
+          if (rr < 0 || cc < 0 || rr >= n || cc >= n) continue;
+          const j = rr * n + cc;
+          if (p.regionOf[j] === u.index && !seen.has(j)) { seen.add(j); stack.push(j); }
+        }
+      }
+      if (seen.size !== u.cells.length) errs.push(`region ${u.index} is not one connected piece`);
+    }
+    errs.push(...checkSolution(p, raw.solution));
+    if (errs.length) return errs;
+    const found = solveAll(p, 2);
+    if (found.length === 0) errs.push('puzzle has no solution');
+    else if (found.length > 1) errs.push('puzzle has more than one solution');
+    else if (found[0].join() !== raw.solution.join()) errs.push('recorded solution differs from the unique solution');
+    return errs;
+  }
+
+  /**
+   * Rule check for a board in progress. Lists every row, column and region
+   * holding two or more crowns, every pair of touching crowns, and the set of
+   * crowns involved in any conflict.
+   */
+  function analyze(p, board) {
+    const { n, regionOf } = p;
+    const queens = [];
+    for (let i = 0; i < board.length; i++) if (board[i] === QUEEN) queens.push(i);
+    const group = (key) => {
+      const m = new Map();
+      for (const q of queens) { const k = key(q); if (!m.has(k)) m.set(k, []); m.get(k).push(q); }
+      return [...m].filter(([, list]) => list.length > 1).sort((a, b) => a[0] - b[0]);
+    };
+    const bad = new Set();
+    const rows = group((q) => rowOf(n, q));
+    const cols = group((q) => colOf(n, q));
+    const regions = group((q) => regionOf[q]);
+    for (const [, list] of [...rows, ...cols, ...regions]) list.forEach((q) => bad.add(q));
+    const adjacent = [];
+    for (let a = 0; a < queens.length; a++) {
+      for (let b = a + 1; b < queens.length; b++) {
+        if (touching(n, queens[a], queens[b])) { adjacent.push([queens[a], queens[b]]); bad.add(queens[a]); bad.add(queens[b]); }
+      }
+    }
+    return {
+      queens, bad, adjacent,
+      rows: rows.map(([k]) => k), cols: cols.map(([k]) => k), regions: regions.map(([k]) => k),
+      solved: queens.length === n && bad.size === 0,
+    };
+  }
+
+  /**
+   * One useful next step, never the whole answer:
+   *   1. remove a crown that is not in the solution,
+   *   2. clear an X that sits on a solution cell,
+   *   3. otherwise place the crown for the row/column/region with the fewest
+   *      open cells (an open cell has no X and no crown covering it).
+   * Returns null when the board is already solved.
+   */
+  function hint(p, board) {
+    const { n, solution } = p;
+    const sol = new Set(solution.map((c, r) => r * n + c));
+    for (let i = 0; i < board.length; i++) if (board[i] === QUEEN && !sol.has(i)) return { action: 'remove', cell: i, reason: 'wrong-queen' };
+    for (let i = 0; i < board.length; i++) if (board[i] === MARK && sol.has(i)) return { action: 'clear', cell: i, reason: 'wrong-mark' };
+    const queens = [];
+    for (let i = 0; i < board.length; i++) if (board[i] === QUEEN) queens.push(i);
+    if (queens.length >= n) return null;
+    const open = (i) => board[i] === EMPTY && !queens.some((q) => covers(p, q, i));
+    let best = null;
+    for (const u of units(p)) {
+      if (u.cells.some((i) => board[i] === QUEEN)) continue;
+      const count = u.cells.filter(open).length;
+      if (!best || count < best.count) best = { u, count };
+    }
+    const cell = best.u.cells.find((i) => sol.has(i));
+    return {
+      action: 'place', cell,
+      unit: { kind: best.u.kind, index: best.u.index },
+      open: best.count,
+      reason: best.count === 1 ? 'only-cell' : 'fewest-cells',
+    };
+  }
+
+  /** Tap behavior per input mode. */
+  function nextState(mode, current) {
+    if (mode === 'mark') return current === MARK ? EMPTY : MARK;
+    if (mode === 'queen') return current === QUEEN ? EMPTY : QUEEN;
+    return current === EMPTY ? MARK : current === MARK ? QUEEN : EMPTY;
+  }
+
+  return { EMPTY, MARK, QUEEN, parsePuzzle, units, touching, covers, solveAll, checkSolution, validatePuzzle, analyze, hint, nextState };
+});
+</script>
+
+<!-- Puzzle data: region maps + solutions only. Generated and verified by tools/generate-crown-lattice.mjs. -->
+<script type="application/json" id="crown-puzzles">
+{"schemaVersion":1,"generator":{"seed":7,"createdWith":"tools/generate-crown-lattice.mjs"},"puzzles":[
+  {"id":"cl-01","name":"First Light","difficulty":"Easy","size":5,"regions":["ABBBB","ACBDB","AAADB","AAEEE","EEEEE"],"solution":[4,1,3,0,2]},
+  {"id":"cl-02","name":"Quiet Court","difficulty":"Easy","size":6,"regions":["AAABBB","AAABCC","AACCCC","DDDCEC","DDDDDD","DDDFFD"],"solution":[5,0,2,4,1,3]},
+  {"id":"cl-03","name":"Velvet Steps","difficulty":"Medium","size":6,"regions":["AAABBB","AACBBB","DDBBBB","DDDEEE","DDDEFE","DDDEFE"],"solution":[0,2,5,3,1,4]},
+  {"id":"cl-04","name":"Lantern Row","difficulty":"Medium","size":7,"regions":["AAAAAAA","BBCAAAA","BBCADDD","CCCEEED","CCCCFEF","CCCCFFF","CGCCFFF"],"solution":[3,0,6,4,2,5,1]},
+  {"id":"cl-05","name":"Glass Garden","difficulty":"Hard","size":7,"regions":["ABBBCCC","ADBBCCC","ADBCCEE","AAFCEEE","FAFGEEE","FFFGGGE","FFFGGGE"],"solution":[3,1,4,0,6,2,5]},
+  {"id":"cl-06","name":"Midnight Ward","difficulty":"Medium","size":8,"regions":["AABBBCDC","AAABBCCC","AAABCCCC","AAEEEECC","AAFFEEGC","FFFFFFGC","HFFFFFGG","FFFFFFFG"],"solution":[6,3,5,1,4,2,0,7]},
+  {"id":"cl-07","name":"Signal Keep","difficulty":"Hard","size":8,"regions":["AAAAAABB","AAAAAAAB","AAAACDDD","AEADDDDD","EEEEDDDD","EFFGDDHH","GFFGGDDH","GGGGGGGG"],"solution":[6,0,4,1,5,2,7,3]},
+  {"id":"cl-08","name":"Ember Throne","difficulty":"Hard","size":9,"regions":["AAAABBBBB","AAAAABBBB","AAAAAABBC","DADEAFCCC","DDDEFFFCF","DDEEGFFFF","DEEHGGFFF","IIIHGGGFF","IIGGGGGFF"],"solution":[7,4,8,0,6,2,5,3,1]},
+  {"id":"cl-09","name":"Starfall Court","difficulty":"Expert","size":9,"regions":["AAABCCDEE","AABBCCDED","AABBCCDDD","FFBBCCCDC","FFFBBBCCC","GFFFCCCCC","GFFHHHHHC","GGGGGHHHI","GGGHHHHII"],"solution":[8,6,0,5,3,1,4,2,7]},
+  {"id":"cl-10","name":"Iron Orchard","difficulty":"Hard","size":10,"regions":["AABBBBBBBB","AAAAAABBBC","AAADBBBBCC","DDADDDCCCC","EDDDDFFFCC","EDDDDGFFCC","EEDGGGFFFF","HEEGGGFFFI","HEJJJJJFFI","EEEEJJIIII"],"solution":[6,2,8,3,7,5,1,9,0,4]}
+]}
+</script>
+
+<script>
+/* Crown Lattice — rendering and input. All rules live in CrownLogic. */
+(function () {
+  'use strict';
+  const L = self.CrownLogic;
+  const { EMPTY, MARK, QUEEN } = L;
+  const $ = (sel) => document.querySelector(sel);
+  const STORE = 'crown-lattice:v1';
+  const REGION_NAMES = ['Amethyst', 'Sapphire', 'Emerald', 'Ruby', 'Topaz', 'Lagoon', 'Rose', 'Jade', 'Copper', 'Indigo'];
+  const STATE_NAMES = { [EMPTY]: 'empty', [MARK]: 'marked X', [QUEEN]: 'crown' };
+
+  // ---- Load and verify puzzle data before anything is shown.
+  const rawPuzzles = JSON.parse($('#crown-puzzles').textContent).puzzles;
+  const puzzles = rawPuzzles.filter((raw) => {
+    const errs = L.validatePuzzle(raw);
+    if (errs.length) console.warn(`Crown Lattice: skipping puzzle ${raw.id}:`, errs);
+    return !errs.length;
+  }).map(L.parsePuzzle);
+
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE)) || {}; } catch { saved = {}; }
+  saved.best = saved.best || {};
+  const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(saved)); } catch { /* storage blocked */ } };
+
+  const S = {
+    idx: Math.min(Math.max(0, saved.idx | 0), Math.max(0, puzzles.length - 1)),
+    p: null, board: [], history: [], mode: 'cycle', focus: 0,
+    hints: 0, won: false, startedAt: 0, elapsed: 0, tick: 0, cells: [],
+  };
+
+  const boardEl = $('#board');
+  const frameEl = $('#frame');
+  const statusEl = $('#status');
+  const winEl = $('#win');
+
+  // ---------------------------------------------------------------- helpers
+  const rc = (i) => [Math.floor(i / S.p.n), i % S.p.n];
+  const where = (i) => { const [r, c] = rc(i); return `row ${r + 1}, column ${c + 1}`; };
+  const regionName = (g) => REGION_NAMES[g] || `Region ${g + 1}`;
+  const fmt = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const elapsed = () => S.elapsed + (S.startedAt ? performance.now() - S.startedAt : 0);
+  function unitName(u) {
+    if (u.kind === 'row') return `row ${u.index + 1}`;
+    if (u.kind === 'col') return `column ${u.index + 1}`;
+    return `the ${regionName(u.index)} region`;
+  }
+  function say(text, tone = '') { statusEl.textContent = text; statusEl.dataset.tone = tone; }
+
+  // ---------------------------------------------------------------- timer
+  function startTimer() {
+    if (S.startedAt || S.won) return;
+    S.startedAt = performance.now();
+    S.tick = setInterval(drawTimer, 500);
+  }
+  function stopTimer() {
+    if (S.startedAt) S.elapsed += performance.now() - S.startedAt;
+    S.startedAt = 0; clearInterval(S.tick);
+    drawTimer();
+  }
+  function drawTimer() { $('#timer').textContent = fmt(elapsed()); }
+
+  // ---------------------------------------------------------------- build
+  function loadPuzzle(idx) {
+    stopTimer();
+    S.idx = idx; S.p = puzzles[idx];
+    saved.idx = idx; persist();
+    S.board = new Array(S.p.n * S.p.n).fill(EMPTY);
+    S.history = []; S.hints = 0; S.won = false; S.elapsed = 0; S.focus = 0;
+    winEl.hidden = true;
+    buildBoard();
+    $('#puzzle-name').textContent = S.p.name;
+    const d = $('#difficulty'); d.textContent = S.p.difficulty; d.dataset.level = S.p.difficulty;
+    $('#puzzle-index').textContent = `${idx + 1} / ${puzzles.length}`;
+    $('#prev').disabled = idx === 0;
+    $('#next').disabled = idx === puzzles.length - 1;
+    say(`${S.p.name}: place ${S.p.n} crowns, one per row, column, and region. No two may touch.`);
+    render();
+  }
+
+  function buildBoard() {
+    const { n, regionOf } = S.p;
+    boardEl.style.setProperty('--n', n);
+    boardEl.setAttribute('aria-rowcount', n);
+    boardEl.setAttribute('aria-colcount', n);
+    boardEl.textContent = '';
+    S.cells = [];
+    for (let r = 0; r < n; r++) {
+      const row = document.createElement('div');
+      row.className = 'row'; row.setAttribute('role', 'row'); row.setAttribute('aria-rowindex', r + 1);
+      for (let c = 0; c < n; c++) {
+        const i = r * n + c, g = regionOf[i];
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.setAttribute('role', 'gridcell');
+        cell.setAttribute('aria-colindex', c + 1);
+        cell.dataset.i = i;
+        cell.style.setProperty('--rc', `var(--r${g % 10})`);
+        if (r === 0 || regionOf[i - n] !== g) cell.classList.add('et');
+        if (c === n - 1 || regionOf[i + 1] !== g) cell.classList.add('er');
+        if (r === n - 1 || regionOf[i + n] !== g) cell.classList.add('eb');
+        if (c === 0 || regionOf[i - 1] !== g) cell.classList.add('el');
+        cell.innerHTML =
+          '<svg class="glyph glyph-q" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-crown"/></svg>' +
+          '<svg class="glyph glyph-x" viewBox="0 0 10 10" aria-hidden="true"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>';
+        row.appendChild(cell);
+        S.cells.push(cell);
+      }
+      boardEl.appendChild(row);
+    }
+  }
+
+  // ---------------------------------------------------------------- render
+  function render() {
+    const p = S.p, n = p.n;
+    const a = L.analyze(p, S.board);
+    const zone = new Set();
+    for (let i = 0; i < n * n; i++) {
+      const [r, c] = rc(i);
+      if (a.rows.includes(r) || a.cols.includes(c) || a.regions.includes(p.regionOf[i])) zone.add(i);
+    }
+    for (const [x, y] of a.adjacent) { zone.add(x); zone.add(y); }
+    S.cells.forEach((cell, i) => {
+      const v = S.board[i];
+      cell.classList.toggle('q', v === QUEEN);
+      cell.classList.toggle('x', v === MARK);
+      cell.classList.toggle('bad', a.bad.has(i));
+      cell.classList.toggle('conflict-zone', zone.has(i));
+      cell.tabIndex = i === S.focus ? 0 : -1;
+      cell.setAttribute('aria-selected', i === S.focus ? 'true' : 'false');
+      const [r, c] = rc(i);
+      cell.setAttribute('aria-label',
+        `Row ${r + 1}, column ${c + 1}, ${regionName(p.regionOf[i])} region, ${STATE_NAMES[v]}${a.bad.has(i) ? ', breaks a rule' : ''}`);
+    });
+    $('#queen-count').textContent = `${a.queens.length}/${n}`;
+    $('#hint-count').textContent = S.hints;
+    $('#undo').disabled = S.history.length === 0 || S.won;
+    $('#hint').disabled = S.won;
+    const best = saved.best[p.id];
+    $('#best').textContent = best ? `Best ${fmt(best)}` : 'No best time yet';
+    frameEl.classList.toggle('solved', S.won);
+    drawTimer();
+    return a;
+  }
+
+  function describeConflicts(a) {
+    const parts = [];
+    a.rows.forEach((r) => parts.push(`Row ${r + 1} has more than one crown.`));
+    a.cols.forEach((c) => parts.push(`Column ${c + 1} has more than one crown.`));
+    a.regions.forEach((g) => parts.push(`The ${regionName(g)} region has more than one crown.`));
+    a.adjacent.forEach(([x, y]) => parts.push(`Crowns at ${where(x)} and ${where(y)} touch.`));
+    return parts.join(' ');
+  }
+
+  // ---------------------------------------------------------------- moves
+  /** Apply a list of [cell, value] edits as one undoable move. */
+  function commit(edits, quiet = false) {
+    if (S.won) return false;
+    const changed = edits.filter(([i, v]) => S.board[i] !== v);
+    if (!changed.length) return false;
+    S.history.push(S.board.slice());
+    for (const [i, v] of changed) S.board[i] = v;
+    startTimer();
+    const a = render();
+    if (a.solved) return win(), true;
+    if (!quiet) {
+      if (a.bad.size) say(describeConflicts(a), 'bad');
+      else say(`${a.queens.length} of ${S.p.n} crowns placed.`);
+    }
+    return true;
+  }
+
+  function tap(i, mode = S.mode) { commit([[i, L.nextState(mode, S.board[i])]]); }
+
+  function undo() {
+    if (!S.history.length || S.won) return;
+    S.board = S.history.pop();
+    const a = render();
+    say(a.bad.size ? describeConflicts(a) : 'Move undone.', a.bad.size ? 'bad' : '');
+  }
+
+  function reset() {
+    loadPuzzle(S.idx);
+    say('Board reset to its starting state.');
+  }
+
+  function giveHint() {
+    if (S.won) return;
+    const h = L.hint(S.p, S.board);
+    if (!h) return;
+    S.hints++;
+    let msg;
+    if (h.action === 'remove') { commit([[h.cell, EMPTY]], true); msg = `The crown at ${where(h.cell)} can't be part of the answer. Removed it.`; }
+    else if (h.action === 'clear') { commit([[h.cell, EMPTY]], true); msg = `A crown belongs at ${where(h.cell)}. Cleared the X there.`; }
+    else {
+      commit([[h.cell, QUEEN]], true);
+      msg = h.reason === 'only-cell'
+        ? `Only one open cell is left in ${unitName(h.unit)}. Crown placed at ${where(h.cell)}.`
+        : `${unitName(h.unit)[0].toUpperCase()}${unitName(h.unit).slice(1)} has the fewest open cells (${h.open}). Its crown goes at ${where(h.cell)}.`;
+    }
+    render();
+    if (!S.won) say(`Hint: ${msg}`, 'hint');
+    const cell = S.cells[h.cell];
+    cell.classList.remove('hinted'); void cell.offsetWidth; cell.classList.add('hinted');
+    setTimeout(() => cell.classList.remove('hinted'), 3400);
+    moveFocus(h.cell, false);
+  }
+
+  function win() {
+    S.won = true;
+    stopTimer();
+    const t = S.elapsed;
+    const prev = saved.best[S.p.id];
+    const record = !prev || t < prev;
+    if (record) { saved.best[S.p.id] = Math.round(t); persist(); }
+    render();
+    const hintText = S.hints ? ` with ${S.hints} hint${S.hints === 1 ? '' : 's'}` : ' with no hints';
+    say(`Solved! Every row, column, and region holds one crown, and none touch. Time ${fmt(t)}.`, 'win');
+    $('#win-detail').textContent = `${S.p.name} solved in ${fmt(t)}${hintText}.${record ? ' New best time!' : ''}`;
+    const last = S.idx === puzzles.length - 1;
+    $('#win-next').textContent = last ? 'Play again' : 'Next puzzle';
+    winEl.hidden = false;
+    $('#win-next').focus();
+  }
+
+  // ---------------------------------------------------------------- focus
+  function moveFocus(i, focusEl = true) {
+    S.focus = i;
+    S.cells.forEach((cell, k) => { cell.tabIndex = k === i ? 0 : -1; cell.setAttribute('aria-selected', k === i ? 'true' : 'false'); });
+    if (focusEl) S.cells[i].focus();
+  }
+
+  // ---------------------------------------------------------------- pointer input
+  // A tap acts on pointerup. A drag that starts on an empty cell paints X marks
+  // across every empty cell it crosses, recorded as one undoable move.
+  let drag = null;
+  const cellAt = (x, y) => { const el = document.elementFromPoint(x, y); const cell = el && el.closest && el.closest('.cell'); return cell && boardEl.contains(cell) ? +cell.dataset.i : -1; };
+
+  boardEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || S.won) return;
+    const i = cellAt(e.clientX, e.clientY);
+    if (i < 0) return;
+    e.preventDefault();
+    boardEl.setPointerCapture(e.pointerId);
+    drag = { id: e.pointerId, start: i, painting: false, cells: new Set([i]) };
+    moveFocus(i, false);
+  });
+  boardEl.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const i = cellAt(e.clientX, e.clientY);
+    if (i < 0 || drag.cells.has(i)) return;
+    if (!drag.painting) {
+      // Painting only makes sense for X marks, and only when starting on an empty cell.
+      if (S.mode === 'queen' || S.board[drag.start] !== EMPTY) return;
+      drag.painting = true;
+      S.history.push(S.board.slice());
+      S.board[drag.start] = MARK;
+      startTimer();
+    }
+    drag.cells.add(i);
+    if (S.board[i] === EMPTY) S.board[i] = MARK;
+    render();
+  });
+  const endDrag = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (d.painting) { const a = render(); say(a.bad.size ? describeConflicts(a) : `Marked ${d.cells.size} cells with X.`, a.bad.size ? 'bad' : ''); return; }
+    if (e.type === 'pointerup' && cellAt(e.clientX, e.clientY) === d.start) tap(d.start);
+  };
+  boardEl.addEventListener('pointerup', endDrag);
+  boardEl.addEventListener('pointercancel', endDrag);
+  boardEl.addEventListener('contextmenu', (e) => {
+    const i = cellAt(e.clientX, e.clientY);
+    if (i < 0) return;
+    e.preventDefault();
+    if (e.pointerType === 'touch') return; // long-press on touch: ignore, taps handle it
+    moveFocus(i, false);
+    tap(i, 'mark');
+  });
+  // Belt and braces for older iOS: no pinch or double-tap zoom on the board.
+  boardEl.addEventListener('touchstart', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  boardEl.addEventListener('dblclick', (e) => e.preventDefault());
+
+  // ---------------------------------------------------------------- keyboard
+  boardEl.addEventListener('keydown', (e) => {
+    const n = S.p.n;
+    let [r, c] = rc(S.focus);
+    const k = e.key;
+    let handled = true;
+    if (k === 'ArrowUp') r = Math.max(0, r - 1);
+    else if (k === 'ArrowDown') r = Math.min(n - 1, r + 1);
+    else if (k === 'ArrowLeft') c = Math.max(0, c - 1);
+    else if (k === 'ArrowRight') c = Math.min(n - 1, c + 1);
+    else if (k === 'Home') c = 0;
+    else if (k === 'End') c = n - 1;
+    else if (k === ' ' || k === 'Enter') tap(S.focus);
+    else if (k === 'x' || k === 'X') tap(S.focus, 'mark');
+    else if (k === 'q' || k === 'Q') tap(S.focus, 'queen');
+    else if (k === 'Delete' || k === 'Backspace') commit([[S.focus, EMPTY]]);
+    else handled = false;
+    if (handled) { e.preventDefault(); e.stopPropagation(); moveFocus(r * n + c); }
+  });
+  boardEl.addEventListener('focusin', (e) => {
+    const cell = e.target.closest('.cell');
+    if (cell) S.focus = +cell.dataset.i;
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!winEl.hidden) {
+      if (e.key === 'Escape') closeWin();
+      return;
+    }
+    if (e.target.closest && e.target.closest('input, textarea, select')) return;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undo(); }
+    else if (mod || e.altKey) return;
+    else if (e.key === 'u' || e.key === 'U') undo();
+    else if (e.key === 'h' || e.key === 'H') giveHint();
+  });
+
+  // ---------------------------------------------------------------- controls
+  function setMode(mode) {
+    S.mode = mode;
+    document.querySelectorAll('.mode button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    const tips = {
+      cycle: 'Cycle: tap once for X, twice for a crown, three times to clear. Drag across empty cells to mark several X at once.',
+      mark: 'Mark X: each tap toggles an X. Drag to mark several cells at once.',
+      queen: 'Crown: each tap toggles a crown.',
+    };
+    $('#rules-short').textContent = tips[mode];
+  }
+  document.querySelectorAll('.mode button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $('#undo').addEventListener('click', undo);
+  $('#hint').addEventListener('click', giveHint);
+  $('#reset').addEventListener('click', reset);
+  $('#prev').addEventListener('click', () => S.idx > 0 && loadPuzzle(S.idx - 1));
+  $('#next').addEventListener('click', () => S.idx < puzzles.length - 1 && loadPuzzle(S.idx + 1));
+  function closeWin() { winEl.hidden = true; S.cells[S.focus].focus(); }
+  $('#win-stay').addEventListener('click', closeWin);
+  $('#win-next').addEventListener('click', () => loadPuzzle(S.idx < puzzles.length - 1 ? S.idx + 1 : 0));
+  winEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const btns = [$('#win-stay'), $('#win-next')];
+    const at = btns.indexOf(document.activeElement);
+    e.preventDefault();
+    btns[(at + 1) % 2].focus(); // two buttons: Tab and Shift+Tab both swap
+  });
+
+  if (!puzzles.length) { say('No valid puzzles were found.', 'bad'); return; }
+  loadPuzzle(S.idx);
+
+  // Exposed for debugging and browser tests.
+  self.CrownGame = { state: S, tap, undo, reset, giveHint, loadPuzzle, setMode, puzzles };
+})();
+</script>
+</body>
+</html>
