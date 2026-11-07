@@ -4,6 +4,7 @@
  *
  * Fast, browser-free checks over every page in the repo:
  *   - the arcade index links only to pages that exist,
+ *   - the gallery and README game list/count agree,
  *   - every inline script on every page is syntactically valid JavaScript,
  *   - inline JSON blocks parse,
  *   - the shipped Vector Maze level pack is well-formed and every level's
@@ -53,6 +54,24 @@ function checkModuleSyntax(source) {
 }
 
 // ---------------------------------------------------------------- index page
+
+const galleryGames = () => [...read('index.html').matchAll(/<a\b[^>]*class="game-card"[^>]*href="([^"]+)"/g)]
+  .map((m) => m[1]);
+const documentedGames = () => [...read('README.md').matchAll(/^\| (?:`([^`]+\.html)`|\[[^\]]+\]\(([^)]+\.html)\)) \|/gm)]
+  .map((m) => m[1] || m[2]);
+
+test('every documented game appears in the gallery exactly once', () => {
+  const games = galleryGames();
+  assert.equal(new Set(games).size, games.length, 'gallery has no duplicate cards');
+  assert.deepEqual(games.sort(), documentedGames().sort(), 'gallery matches the README game list');
+});
+
+test('the README game count matches its game list and the gallery', () => {
+  const count = read('README.md').match(/Explore (\d+) games and interactive experiments/);
+  assert.ok(count, 'README includes a game count');
+  assert.equal(Number(count[1]), documentedGames().length);
+  assert.equal(Number(count[1]), galleryGames().length);
+});
 
 test('the arcade index links only to pages that exist', () => {
   const links = [...read('index.html').matchAll(/href="([^"#?]+)"/g)]
