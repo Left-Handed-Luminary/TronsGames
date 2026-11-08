@@ -825,7 +825,9 @@ const KEYS = [
   { ...FLAT, t: 8.3, W: 14.8 },
   { ...FLAT, t: 8.9, W: 14.6, lay: 1 },                                   // cheat: cones slide while flat
   { ...FLAT, t: 9.3, W: 14.4, lay: 1 },
-  { t: 10.4, y: 4, el: 38, fov: 32, yaw: -12, W: 22, H: -0.2 },           // high diagonal: the row was a diagonal
+  { t: 9.8, y: 4.2, el: 3, fov: 4.5, yaw: -1.5, W: 15, H: -0.02 },       // ease out of the flat: on a 2 deg lens
+                                                                          // a little elevation sweeps the frame
+  { t: 10.6, y: 4, el: 38, fov: 32, yaw: -12, W: 22, H: -0.2 },           // high diagonal: the row was a diagonal
   { t: 11.3, yaw: -20, el: 50, fov: 4, W: 30, H: 0, y: 3 },               // other corner, telephoto
   { t: 12.0, fov: 38, W: 30 },                                            // ...opens
   { t: 12.8, y: 0.45, H: -0.65, fov: 80, el: 0, yaw: -6, W: 14 },         // worm's eye
@@ -1032,7 +1034,9 @@ window.probe = (ms) => {
   const cam = cameraFromShot(TL.at(ms / 1000), ASPECT);
   return PROBES.map((p) => {
     const q = projectPoint(cam, p, WIDTH, HEIGHT);
-    return q ? { px: q.px, py: q.py } : null;
+    /* ignore points behind the near plane or far off screen: they blow up near the camera */
+    if (!q || q.depth < cam.near || Math.abs(q.ndcX) > 1.5 || Math.abs(q.ndcY) > 1.5) return null;
+    return { px: q.px, py: q.py };
   });
 };
 window.shotAt = (ms) => TL.at(ms / 1000);

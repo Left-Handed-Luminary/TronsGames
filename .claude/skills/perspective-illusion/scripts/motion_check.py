@@ -5,8 +5,8 @@
 
 Per-frame motion is the mean |frame[i+1] - frame[i]| (grey levels, downscaled).
   freeze   a run of >= --min-run steps with motion below --freeze (holds should drift)
-  stutter  a step far above or below its neighbours while they move (dropped,
-           doubled or jumping frames)
+  stutter  one step far above or below BOTH neighbours while they move (dropped,
+           doubled or jumping frames); smooth eases into holds are not flagged
   seam     the last->first step compared with the typical step
 Exit status 1 if any freeze or stutter is found.
 """
@@ -51,19 +51,18 @@ def find_freezes(steps: np.ndarray, freeze: float, min_run: int) -> list:
 
 
 def find_stutters(steps: np.ndarray, ratio: float = 3.0, floor: float = 0.3) -> list:
-    """Steps that jump (spike) or drop (dip) against a moving neighbourhood."""
+    """Single steps out of line with BOTH neighbours: a jump (spike) or a doubled or
+    dropped frame (dip). Easing into or out of a hold changes speed gradually, so it
+    is never flagged: one neighbour is always close to the step itself."""
     out = []
-    n = len(steps)
-    for i in range(n):
-        nb = [steps[j] for j in range(max(0, i - 2), min(n, i + 3)) if j != i]
-        if len(nb) < 2:
-            continue
-        med = float(np.median(nb))
+    for i in range(1, len(steps) - 1):
         s = float(steps[i])
-        if med > floor and s > med * ratio:
-            out.append((i, "spike", s, med))
-        elif med > floor and s < med / ratio:
-            out.append((i, "dip", s, med))
+        lo = float(min(steps[i - 1], steps[i + 1]))
+        hi = float(max(steps[i - 1], steps[i + 1]))
+        if lo > floor and s > hi * ratio:
+            out.append((i, "spike", s, hi))
+        elif lo > floor and s < lo / ratio:
+            out.append((i, "dip", s, lo))
     return out
 
 

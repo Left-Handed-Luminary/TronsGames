@@ -90,6 +90,12 @@ class MotionTests(unittest.TestCase):
         kinds = [k for _, k, _, _ in motion_check.analyse(frames).stutters]
         self.assertIn("spike", kinds)
 
+    def test_ease_into_hold_is_not_a_stutter(self):
+        steps = np.array([12.4, 10.2, 7.2, 3.1, 0.6, 1.4, 2.0, 2.5, 3.2])   # measured on a real ease
+        self.assertEqual(motion_check.find_stutters(steps), [])
+        stop = np.array([25.4, 24.0, 21.0, 12.8, 0.8, 0.04, 0.04, 0.05])
+        self.assertEqual(motion_check.find_stutters(stop), [])
+
     def test_find_freezes_runs(self):
         steps = np.array([1, 0, 0, 0, 1, 0, 0])
         self.assertEqual(motion_check.find_freezes(steps, 0.5, 3), [(1, 3)])
