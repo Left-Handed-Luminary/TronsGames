@@ -15,7 +15,9 @@ A level camera on a very long lens (about 2° from 400 to 900 m away) flattens a
 perspective-illusion/
   SKILL.md, reference.md
   templates/
-    street.html        day side street, red evening sky, all renderer hooks   <- start here
+    street.html        day side street, red evening sky, all renderer hooks   <- start here (day)
+    scramble_night.html  night scramble crossing in the rain: glow, wet reflections,
+                         bloom, crowd, train, ad screens, grade                 <- start here (night)
     lib/camera.js      shot -> camera math, monotone timeline, jitter/blur sampling (pure JS)
     lib/harness.mjs    static server + headless Chromium + ffmpeg pipe
     render.mjs         stills (8x AA) and quick 1-sample drafts
@@ -25,6 +27,7 @@ perspective-illusion/
     blink_map.py       one-frame flicker in still frames, with a heat map
     frames.py          shared ffmpeg reader / PNG writer
   tests/               node --test tests/*.test.mjs ; python3 -m unittest discover -s tests
+                       (set PI_NODE_MODULES=<dir with three> to also smoke-test every template in Chromium)
 ```
 
 ## Quick start
@@ -35,7 +38,7 @@ perspective-illusion/
 mkdir -p edits/<date>-<name> && cd $_
 printf '{"type":"module"}' > package.json && npm i three@0.170.0
 cp -r $SKILL/templates/* .
-cp street.html scene.html                                         # then edit the scene section
+cp street.html scene.html                                         # or scramble_night.html; then edit the scene section
 node render.mjs scene.html x --stills=0.3,2.8,4.9,6.7,9.1,10.4,12.0,12.8   # stills/ (add --scale=.5 to go faster)
 node render_fast.mjs scene.html preview.mp4 --preview             # whole loop, half size, 30 fps
 node render_fast.mjs scene.html final.mp4                         # full size, 60 fps, up to 32 samples/frame
@@ -52,8 +55,9 @@ Start from the template closest to the new scene. Keep its camera rig, timeline,
 | Template | Scene | Renderer |
 |---|---|---|
 | `street.html` | Day side street: shops, sign towers, poles and wires, a parked car, a side street, five swap cones, coral sky. | `render_fast.mjs` |
+| `scramble_night.html` | Night scramble crossing in the rain: lit windows, neon sign stacks, four ad screens, an elevated railway with a passing train, about 90 walkers with umbrellas, five red-umbrella swap people, wet-road reflections, bloom, rain, night grade. | `render_fast.mjs` |
 
-New templates (a supermarket aisle, a night crossing in the rain with a crowd and screens) are built the same way: copy `street.html`, replace the scene section, then add the extras in [reference.md](reference.md). Add a row here when one is committed.
+For a day scene start from `street.html`; for anything at night, or with a crowd or screens, start from `scramble_night.html` (its passes, glow flag and life section are the reusable parts). New templates (a supermarket aisle, a station) are built the same way: copy the closer one, replace the scene section, and add a row here when one is committed.
 
 ## Step 1: Build a scene that can fool the eye
 
@@ -116,7 +120,7 @@ The page renders three passes per sub-render: flat colour (`MeshBasicMaterial`, 
 - **Palette.** 6 to 10 flat colours plus one accent (the coral sky in `street.html`). To match a reference, take the colours from its frames with k-means.
 - **Light.** One low, hard sun placed so the main subjects stay lit and throw long shadows across the ground. A sun from the tall side buries the scene in one big shadow: in `street.html` the tall buildings are on the left and the sun comes from behind-right.
 
-For a night variant (moonlight, lit windows, wet reflections, glow, rain, grade), a crowd of walkers, or ad screens and signs, see [reference.md](reference.md).
+For a night variant (moonlight, lit windows, wet reflections, glow, rain, grade), a crowd of walkers, or ad screens and signs, see `scramble_night.html` and [reference.md](reference.md).
 
 ## Step 4: Detail passes (what makes it great)
 
@@ -191,7 +195,8 @@ Everything animated must be a pure function of `ms`, periodic in the loop length
 - A `//` comment added to one-line code swallows the rest of the line (a `scene.add`, a light). Use `/* */`.
 - Helpers that add to the scene root ignore the current group, and can land on top of things. Build inside groups (every kit helper takes the group first).
 - Single-sided quads only cast shadows if their material has `shadowSide = DoubleSide` (the kit's `mat()`/`tmat()` set it).
-- Keep emissive faces (screens, sign panels) out of the flat-colour and shadow passes, or every glyph gets inked and darkened (see reference.md).
+- Keep emissive faces (screens, sign panels) out of ink and shading, or every glyph gets inked and darkened: flag them in the lit pass (`scramble_night.html`, `litFor()`).
+- A mesh whose material changes over time (a screen cutting slides) must update `mesh.userData.albedo`, not `mesh.material`: the pass switcher restores the albedo material before every colour pass.
 - `ffmpeg -stream_loop ... -c copy` makes loops that some players stop early. Re-encode instead.
 - For X, side-by-sides at 32:9 are too wide to upload. Stack them vertically.
 - Use original characters and made-up brands only. Copy the technique of a reference, never its artwork.

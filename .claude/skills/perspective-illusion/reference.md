@@ -1,37 +1,39 @@
 # Perspective illusion: reference
 
-Extras that are not in `templates/street.html`. Each is written against the template's structure (`kit` helpers, the three passes in `drawSample`, the post shader), so it can be pasted in.
+Night, crowd and screen techniques. All of them are implemented in `templates/scramble_night.html`; the notes below say how each works and what to keep when porting it to another scene.
 
 ## Night variant
 
-1. **Light.** Swap the sun for a cool, higher moon (`#9fb4ff`, elevation 50 to 60°) and darken `shadeTint` to about `(0.25, 0.28, 0.42)`. Keep the two-tone step: night still reads as lit versus shade.
-2. **Emissive faces** (lit windows, sign panels, screens). Give them a separate material flag and keep them out of ink and shade:
-   - In the lit pass, override them with `MeshBasicMaterial({ color: 0xff0000 })` instead of `litMat` (render the scene twice with `layers`, or swap materials by traversal for the emissive meshes only). Red = 1 and green = 0 marks "emissive" in `tLit`.
-   - In the post shader: `bool glow = lit.r > 0.9 && lit.g < 0.1;` then skip two-tone, hatching and ink when `glow`, and output `alb * 1.6`.
-   - Windows: paint a lit-window tile variant (warm `#ffd9a0` glass, curtain silhouettes) and pick lit or dark per window by a seeded hash, never by time.
-3. **Glow.** Downsample the post output where `glow` is true (a 4-tap box blur at 1/4 size, twice), add it back at 0.6. It is screen-space, so it moves with the scene; keep its radius under 1.5% of the frame width, or it reads as haze.
-4. **Wet ground.** For pixels with `nW.y > 0.9`, reflect the view ray (`reflect(dirW, vec3(0,1,0))`) and look up the post colour at the mirrored screen position of the reflected point (project `posW` mirrored in y with the current view-projection). Mix 30 to 45% where the sample is emissive, 10% elsewhere, and fade to zero within 8% of the screen border. Break it up with a world-anchored puddle mask (`fbm(posW.xz * 0.3)`), never screen noise.
-5. **Haze line.** A thin warm band where the ground meets the far end: `mix(col, hazeColor, smoothstep(80., 220., distanceAlongZ) * 0.35)` using world z, not camera distance (camera distance changes during dolly zooms and the band would crawl).
-6. **Rain.** Streaks are world-space line segments in a box around the focus point: positions `p = base + vec3(0, -mod(t * 9.0 + seed, 12.0), 0)` with 9 m/s fall speed and a 12 m cycle, so `LOOP_S * speed / cycle` must be a whole number (with 14 s, 9 m/s and 12 m give 10.5: use a 10.5 m cycle for 12 cycles, or 6 m/s with 12 m for 7). Draw them as one `LineSegments` in the `live` group, in the albedo pass only (light grey, alpha via colour), and exclude them from ink. Jitter AA in `render_fast` handles the sub-pixel width.
-7. **Grade.** In the blit pass: lift blacks slightly (`col = col * 0.92 + 0.02`), push shadows toward blue, and add a gentle vignette. Do it in the blit shader, before the sRGB encode.
+1. **Light.** A cool, high moon (`MOON`, elevation about 45°) still drives a two-tone step: lit faces get `litTint (0.55, 0.6, 0.85)`, shade gets `shadeTint (0.2, 0.22, 0.36)`. Night still reads as lit versus shade.
+2. **Glowing faces** (lit windows, signs, screens, lamps, rain). The lit pass encodes two things: `g` = moon Lambert x shadow, `r - g` = glow.
+   - A material declares glow with `userData.glow = 1` (the whole face, via `mat(color, 1)` or `tmat(..., { glowAll: true })`) or `userData.glowMap` (a mask: `tmat(..., { glowPaint })` paints a second canvas in the same layout, white = glows).
+   - `litFor()` picks the lit-pass material: `MeshBasicMaterial` red for whole faces, `MeshLambertMaterial` white with red `emissive` + `emissiveMap` for masks, plain Lambert otherwise. `setPass()` swaps materials by traversal for each pass.
+   - In the post shader, `glow > 0.5` skips two-tone, hatching and ink, and outputs `alb * glowGain`.
+   - Windows: `windowTile()` decides lit or dark per window with a seeded rng and paints both canvases from the same layout, never by time.
+3. **Bloom.** The post pass writes the glow amount to alpha. `bloomDown` takes `rgb * alpha` to quarter size, a separable 9-tap blur runs twice, and the accumulate pass adds it at 0.9. Keep the radius under about 1.5% of the frame width, or it reads as haze.
+4. **Wet ground.** The camera is never tilted, so the mirror image of a point stays in its pixel column. For a ground pixel, march up the column (32 steps, quadratic spacing); at each sample rebuild the world height `Y` from depth and project its mirror (`-Y`). The first sample whose mirror lands at or below this pixel is the reflection. Mix it 32 to 77% (a world-anchored puddle mask `fbm(posW.xz * 0.35)`), full strength for glowing samples and 45% for the rest, and fade near the top of the screen. Never use screen-space noise for the puddles.
+5. **Haze.** A low band toward the far end by world z (`smoothstep(-90, -210, posW.z)`) and world height, never camera distance (that changes during dolly zooms and the band would crawl).
+6. **Rain.** 2,600 world-space `LineSegments` in a box round the crossing, glowing (so no ink), hidden in the normal pass. Fall 9 m/s in a 31.5 m column: 126 m per 14 s loop is exactly 4 columns, so the loop closes. In general `LOOP_S * speed / column` must be a whole number. Jitter AA in `render_fast` handles the sub-pixel width.
+7. **Grade** (blit pass, before the sRGB encode): soft roll-off for bright glow, blue push in the shadows, lifted blacks. The vignette is in the accumulate pass.
 
-### Day look from a night scene
+### Day look from the night template
 
-Swap the moon for a warm sun and raise the ambient tint; delete the point lights; remove wet ground, haze line and grade from the post shader; drop the rain; set every emissive flag to off; paint a day `skyAt`.
+Swap `MOON` for a low warm sun and raise both tints; delete the haze, the reflections block and the grade; drop the rain; set every glow flag to 0 (keep masks off); paint a day `skyAt`.
 
 ## Crowd of walkers
 
-- **Bodies.** A walker is a group: legs (two boxes pivoting at the hip), torso (box), head (sphere), optional bag or umbrella. 1.55 to 1.85 m tall, flat colours from the palette, one accent garment in a few of them.
-- **Motion.** Each walker is a pure function of `ms`: `phase = (ms / LOOP_MS) * laps + offset`; position along a path is `fract(phase)`. Pick `laps` as whole numbers so the loop closes. Stride angle `sin(phase * strides * 2π) * 0.45`, with `strides` a whole number per lap.
-- **Wrapping.** A walker that reaches the path end reappears at the start. Put both ends out of frame or behind something, and time the wrap during the fastest camera move (use `window.probe` to find it).
-- **Scale.** At 30+ walkers, use `InstancedMesh` per body part: one draw call each. They stay out of `mergeStatic`. Mark the shadow map dirty every frame they are visible (`renderer.shadowMap.needsUpdate = true`), or give them a fake contact shadow (a dark disc in the albedo pass, 2 cm above the ground, with ink disabled) and leave them out of the shadow map.
-- **Crossing scenes.** A scramble crossing reads best with 3 to 4 streams on diagonals; in the flat view they become one dense band of people.
+- **Bodies.** Instanced parts (`InstancedMesh` per part: legs, torso, head, umbrella canopy and stick): one draw call each, about 90 walkers. Per-walker colours via `setColorAt`. Legs pivot at the hip; stride follows distance walked, not time, so feet never slide.
+- **Motion.** Each walker covers `v * LOOP_S` metres along a straight line per loop: `s = s0 + v * ((t - WRAP_S) mod LOOP_S)`. Everyone wraps back at the same instant `WRAP_S`, chosen during the fastest camera move (found with `window.probe`), where motion blur hides it.
+- **Passes.** The normal-pass `ShaderMaterial` applies `instanceMatrix` under `#ifdef USE_INSTANCING`; Lambert and Basic handle instancing themselves. Set `frustumCulled = false`, since instances move.
+- **Shadows.** Walkers don't cast into the shadow map (it would need an update every frame); they receive it.
+- **Crossing scenes.** Streams on all four crosswalks and both diagonals; in the flat view they pile into one dense band of umbrellas.
 
-## Ad screens and signs
+## Ad screens, signs and a train
 
-- **Signs.** Paint text with `tmat()` on a canvas, in a real font (`IPAGothic`, `Noto Sans CJK JP`, `Inter` as available) with made-up brand names. Vertical Japanese signs: one glyph per row (`paintVertSign`). Light-box signs at night are emissive (see above).
-- **Screens.** A `CanvasTexture` redrawn from `ms` each sub-render (set `needsUpdate = true`). Content loops a whole number of times per loop: slides with hard cuts are safer than scrolling text, which can blink on the final. Keep screens out of ink.
-- **Scale.** Screens on far facades are 6 to 12 m wide; at telephoto they stack with signs into one wall of colour, which is the point.
+- **Signs.** Text painted with `tmat()` on a canvas, in a real font (`IPAGothic`, `Noto Sans CJK JP`, `Inter` as available), with made-up brand names. Vertical signs: one glyph per row (`paintVertSign`). Glowing at night.
+- **Screens.** Slides are painted once (`SLIDES`); a screen cuts between them `cuts` times per loop, where `cuts` is a multiple of the slide count so the loop closes. Hard cuts never blink; scrolling text can. A screen changes `mesh.userData.albedo` (the pass switcher restores it), and stays out of the static merge.
+- **Train.** One pass per loop: 480 m per 14 s, wrapping at x = ±240, far outside every frame. Lit windows via a glow mask.
+- **Scale.** Screens 8 to 14 m wide on the buildings facing the crossing; one on the end building low enough (`screenY`) to sit in the flat frame as its hero.
 
 ## Other scenes
 
