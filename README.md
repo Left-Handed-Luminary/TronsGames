@@ -14,7 +14,7 @@ AI-generated browser games and interactive experiments in HTML, CSS, and JavaScr
 
 **[Play the browser game collection](https://left-handed-luminary.github.io/TronsGames/)**
 
-Explore 23 games and interactive experiments, including Crystal Madness, Mega Minesweeper, Vector Maze, Newton's Cradle, and Davidic Lyre.
+Explore 24 games and interactive experiments, including Crystal Madness, Mega Minesweeper, Vector Maze, Newton's Cradle, and Davidic Lyre.
 
 This project explores rapid AI-assisted development with Gemini through individual playable HTML pages. Open the gallery to play, or browse the source to inspect the code. No build step required.
 ## About the Project
@@ -57,6 +57,7 @@ The repository includes several one-page games and experiments, including:
 | `newtons-cradle.html` | Momentum-transfer timing challenge inspired by the classic desktop toy |
 | `mergation.html` | Merge-style browser game prototype |
 | [Night Bowling](night-bowling.html) | Calming nighttime bowling game |
+| `perspective-crossing.html` | Perspective-illusion loop of a rainy night crossing: a flat telephoto drawing that opens into 3D, with play, pause, scrub and shot captions. Generated from the Claude skill below (tests: `node --test tools/test-perspective-crossing.mjs`) |
 | `reverse2048.html` | Reverse 2048 puzzle where you split tiles down to zero score |
 | `simon-writes.html` | Simon-style rhythm game with the moves written down, trap lines, fading ink, and a silent night mode that keeps time with a light pulse (tests: `node --test tools/test-simon-writes.mjs`) |
 | `sleepy-puzzle.html` | Gentle tile-swapping picture puzzle with sleepy animal scenes |
@@ -95,6 +96,23 @@ Then visit:
 ```text
 http://localhost:8000
 ```
+
+## Claude Skills
+
+The repository also ships a [Claude Code](https://claude.com/claude-code) skill in `.claude/skills/`. Claude Code loads it automatically when it works in this repository.
+
+| Skill | What it makes |
+|---|---|
+| [`perspective-illusion`](.claude/skills/perspective-illusion/SKILL.md) | Looping illustrated 3D videos in the Japanese perspective-illusion style: a line-art scene flattened by a telephoto lens opens into deep perspective with dolly zooms and corner views, while objects swap depth during the flat moments. |
+
+Ask Claude for "a perspective illusion video of a station platform" (or any place) and it follows the skill: it copies a scene template, builds the place, choreographs the camera, renders stills to review, and then renders the loop with Playwright and ffmpeg. The skill includes:
+
+- **Templates:** `street.html` (a day side street) and `scramble_night.html` (a rainy night crossing with glow, wet reflections, a crowd and a train).
+- **Renderers:** `render.mjs` for stills and drafts, `render_fast.mjs` for anti-aliased, motion-blurred finals.
+- **Checks:** `motion_check.py` (freezes, stutter, loop seam) and `blink_map.py` (one-frame flicker).
+- **Tests:** `node --test .claude/skills/perspective-illusion/tests/*.test.mjs` and `python3 -m unittest discover -s .claude/skills/perspective-illusion/tests`.
+
+The Perspective Crossing gallery page is built from the night template, because GitHub Pages does not serve the `.claude` folder. After changing the template, rebuild the page with `node tools/build-perspective-crossing.mjs`; `tools/test-perspective-crossing.mjs` fails if the page is out of date.
 
 ## Why Single-Page Games?
 
